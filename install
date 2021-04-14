@@ -1,0 +1,6 @@
+
+#! /bin/bash
+
+make
+sudo insmod tagservice.ko
+dmesg | tail | grep "TAG Service"
