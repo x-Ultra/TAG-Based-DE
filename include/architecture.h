@@ -3,8 +3,10 @@
 
 struct thread_tagdata{
 
-    //TODO...
+    //TODO
+    int changemelater;
 };
+
 
 struct receiving_threads{
 
@@ -27,8 +29,9 @@ struct tag_service{
     pid_t creator_pid;
     uid_t creator_uid;
     int permission;
-    struct tag_level tag_levels[TAG_LEVELS_NUM];
+    struct tag_level *tag_levels[TAG_LEVELS_NUM];
 };
 
 
-struct tag_service tag_table[TBL_ENTRIES_NUM];
+//TODO check allignment and false cache sharing
+struct tag_service *tag_table[TBL_ENTRIES_NUM];

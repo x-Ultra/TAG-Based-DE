@@ -8,14 +8,7 @@
 //copying from-to user
 #include <linux/uaccess.h>
 
-
 #define MODNAME "TAG Service"
-
-#ifdef DEBUG
-#define AUDIT if(1)
-#else
-#define AUDIT if(0)
-#endif
 
 MODULE_AUTHOR("Ezio Emanuele Ditella");
 MODULE_DESCRIPTION("TAG Service Data Exchange, a detailed description of \
@@ -23,6 +16,15 @@ MODULE_DESCRIPTION("TAG Service Data Exchange, a detailed description of \
 
 static int __init install(void)
 {
+	int i;
+
+	//init tag table NULL entries
+	//TODO 
+	for(i = 0; i < TBL_ENTRIES_NUM; i++){
+		tag_table[i] = NULL;
+	}
+
+	return -1;
 }
 
 static void __exit uninstall(void)
