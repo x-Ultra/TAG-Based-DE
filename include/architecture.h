@@ -1,6 +1,12 @@
 #include "constants/constants.h"
 
 
+//TODO ALLIGN TO CACHE LINES
+//tag_table entries
+//tag_service
+//levels ?
+
+
 struct thread_tagdata{
 
     //TODO
@@ -27,11 +33,14 @@ struct tag_service{
 
     int key;
     pid_t creator_pid;
-    uid_t creator_uid;
+    uid_t creator_euid;
     int permission;
     struct tag_level *tag_levels[TAG_LEVELS_NUM];
-};
+
+    //The cleaner (softirq bh) has to be diabled with spin_lock_bh(removing)
+    spinlock_t removing;
+}__attribute__((align(64)));
 
 
 //TODO check allignment and false cache sharing
-struct tag_service *tag_table[TBL_ENTRIES_NUM];
+struct tag_service *tag_table[TBL_ENTRIES_NUM] __attribute__((align(8)));

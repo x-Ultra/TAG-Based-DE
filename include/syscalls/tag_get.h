@@ -1,38 +1,74 @@
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/kern_levels.h>
-//kmalloc declaration
-#include <linux/slab.h>
-//header  for kmalloc flags
-#include <linux/gfp.h>
-//copying from-to user
-#include <linux/uaccess.h>
 
 
 //function that audit tag_get error repending on (negative) return code
 void tag_get_error(int errorcode)
 {
-    if(errorcode == KEY_USED){
-        printk(KERN_ERR "%s: Key was already used", TAG_GET);
-    }else if(errorcode == PRIVATE_OPEN){
-        printk(KERN_ERR "%s: Tag Open on private key not permitted", TAG_GET);
-    }else if(errorcode == INVALID_CMD){
-        printk(KERN_ERR "%s: Command value incorrect");
+
+    switch(errorcode){
+        case KEY_USED:
+            printk(KERN_ERR "%s: Key was already used", TAG_GET);
+            break;
+        case PRIVATE_OPEN:
+            printk(KERN_ERR "%s: Tag Open on private key not permitted", TAG_GET);
+            break;
+        case INVALID_CMD:
+            printk(KERN_ERR "%s: Command value incorrect");
+            break;
+        case KEY_NOT_FOUND:
+            printk(KERN_ERR "%s: Key was not found", TAG_GET);
+            break;
+        case INVALID_EUID:
+            printk(KERN_ERR "%s: Invalid EUID", TAG_GET);
+            break;
+        case MOD_INUSE:
+            printk(KERN_ERR "%s: Module in use", TAG_GET);
+            break;
+        case KEY_RESERVED:
+            printk(KERN_ERR "%s: Key -1 is reserved", TAG_GET);
+            break;
+        case ERR_KMALLOC:
+            printk(KERN_ERR "%s: Unable to kmalloc", TAG_GET);
+            break;
+        default:
+            printk(KERN_ERR "%s: Unknown error", TAG_GET);
     }
 }
 
 
 int create_tag_service(int key, int permission)
 {
-
     //Check if key was already assigned
+    int descriptor;
+    struct tag_service *new_service;
 
-    //Create tag table entry
+    if(try_module_get(THIS_MODULE) == 0){
+		return MOD_INUSE;
+	}
+
+    mutex_lock(&adding_key_spin);
+    for(descriptor = 0; descriptor < TBL_ENTRIES_NUM; descriptor++){
+        if(used_keys[descriptor] == -1){
+            break;
+        }else if(used_keys[descriptor] == key){
+            module_put(THIS_MODULE);
+            return KEY_USED;
+        }
+    }
+
+
+    //Creating tag table entry
+    if((new_service = kmalloc(sizeof(struct tag_service), GFP_KERNEL)) == NULL){
+		printk(KERN_ERR "%s: Unable to alloc tag_service", TAG_GET)
+		return ERR_KMALLOC;
+	}
 
     //TODO-> insert corret metadata to cleaner data structure
+    //TODO spin_lock_init(), mutex_init()...
+    //CONTINUE HERE ! ! ! ! !  !! ! ! !  ! !
 
-    //alloc tag table entry(tag_service)
+    //insert tag table entry(tag_service)
 
+    mutex_unlock(&adding_key_mtx);
     return 0;
 }
 
@@ -40,45 +76,85 @@ int create_tag_service(int key, int permission)
 //function that fetched the tag tableentry depending on tag Key
 int fetch_tag_desc(int key, int permission)
 {
-    //perform checks based on permission value
+    int descriptor;
+    uid_t EUID;
+    struct tag_service *current_entry = tag_table[0]
 
-    //TODO scan tag tableentry
+    //Check key type
+    if(key == IPC_PRIVATE)
+        return PRIVATE_OPEN;
 
-    //sanity checks on key ! !
+    if(try_module_get(THIS_MODULE) == 0){
+		return MOD_INUSE;
+	}
+
+    //scaninng tag table
+    for(descriptor = 0; descriptor < TBL_ENTRIES_NUM; descriptor++){
+
+        current_entry = tag_table[descriptor];
+        //if the cleaner has acquired the entry it will be
+        //deleted soon, so skip this entry
+        if(!spin_trylock(current_entry->removing))
+            continue;
+
+        if(current_entry == NULL){
+            spin_unlock(current_entry->removing);
+            module_put(THIS_MODULE);
+            return KEY_NOT_FOUND;
+        }
+        if(current_entry->key == key){
+            break;
+        }
+        if(i == TBL_ENTRIES_NUM-1){
+            spin_unlock(current_entry->removing);
+            module_put(THIS_MODULE);
+            return KEY_NOT_FOUND;
+        }
+        spin_unlock(current_entry->removing);
+    }
+
+    //perform checks based on permission value of current_entry
+    if(permission == PERMISSION_USER){
+        EUID = current_euid();
+        if(EUID != current_entry->creator_euid){
+            module_put(THIS_MODULE);
+            return INVALID_EUID;
+        }
+    }
+
+    module_put(THIS_MODULE);
+    return descriptor;
 }
 
 
 asmlinkage int tag_get(int key, int command, int permission)
 {
-        int tag_descriptor;
+    int tag_descriptor;
 
-        //Check key type
-        if(key == IPC_PRIVATE){
-            if(command == CMD_OPEN){
-                tag_get_error(PRIVATE_OPEN);
-                return -1;
-            }
-            AUDIT
-                printk(KERN_DEBUG "%s: Private key tag_get call", TAG_GET);
-        }
+    //key reserved
+    if(key == -1){
+        tag_get_error(KEY_RESERVED);
+        return -1;
+    }
 
-        //check command type
-        if(command == CMD_OPEN){
-            AUDIT
-                printk(KERN_DEBUG "%s: Private key tag_get call", TAG_GET);
+    //check command type
+    switch(command){
+        case CMD_OPEN:
             if((tag_descriptor = fetch_tag_desc(key, permission)) < 0){
                 tag_get_error(tag_descriptor);
                 return -1;
             }
-        }else if(command == CMD_CREATE){
+            break;
+        case CMD_CREATE:
             if((tag_descriptor = create_tag_service(key, permission)) < 0){
                 tag_get_error(tag_descriptor);
                 return -1;
             }
-        }else{
+            break;
+        default:
             tag_get_error(INVALID_CMD);
             return -1;
-        }
+    }
 
-        return 0;
+    return tag_descriptor;
 }

@@ -7,6 +7,12 @@
 #include <linux/gfp.h>
 //copying from-to user
 #include <linux/uaccess.h>
+//spinlocks
+#include <linux/spinlocks.h>
+//mutex
+#include <linux/mutex.h>
+//uid functions
+#include <linux/cred.h>
 
 #define MODNAME "TAG Service"
 
@@ -19,9 +25,10 @@ static int __init install(void)
 	int i;
 
 	//init tag table NULL entries
-	//TODO 
+	//TODO
 	for(i = 0; i < TBL_ENTRIES_NUM; i++){
 		tag_table[i] = NULL;
+		used_keys[i] = -1;
 	}
 
 	return -1;
