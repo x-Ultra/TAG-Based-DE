@@ -1,6 +1,3 @@
-//nuumber of level of each tag service
-#define TAG_LEVELS_NUM 16;
-
 //number of tag services (tag table entries)
 #define TBL_ENTRIES_NUM 256;
 
@@ -12,8 +9,16 @@
 #define CMD_OPEN 0
 #define CMD_CREATE 1
 
-//ipc private key
-#define IPC_PRIVATE 0
+//ipc private constants
+#define TAG_IPC_PRIVATE 0
+//12 bit -> 2^12=4096 IPC private tag services maximum
+//their descriptor has to go from 0 to (2^12)-1
+#define PRIV_TAG_BIT 12
+//this has to be 2^PRIV_TAG_BIT !
+#define MAX_PRIVATE_TAGS 4096
+
+//used in level initialization
+#define NO_TAG_LEVELS -1
 
 //Used in debug
 #define TAG_GET "tag_get"
@@ -34,13 +39,11 @@
 #define KEY_NOT_FOUND -4
 #define INVALID_EUID -5
 #define KEY_RESERVED -6
+#define SERVICE_SETUP_FAIED -7
+#define TAG_TBL_FULL -8
 
 #ifdef DEBUG
 #define AUDIT if(1)
 #else
 #define AUDIT if(0)
 #endif
-
-
-DEFINE_MUTEX(adding_key_mtx);
-unsigned int used_keys[TBL_ENTRIES_NUM];

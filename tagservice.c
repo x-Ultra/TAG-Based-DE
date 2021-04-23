@@ -8,11 +8,13 @@
 //copying from-to user
 #include <linux/uaccess.h>
 //spinlocks
-#include <linux/spinlocks.h>
+#include <linux/spinlock.h>
 //mutex
 #include <linux/mutex.h>
 //uid functions
 #include <linux/cred.h>
+
+#include "include/architecture.h"
 
 #define MODNAME "TAG Service"
 

@@ -1,4 +1,4 @@
-#include "constants/constants.h"
+#include "constants.h"
 
 
 //TODO ALLIGN TO CACHE LINES
@@ -24,8 +24,17 @@ struct receiving_threads{
 struct tag_level{
 
     unsigned int waiting_threads;
-    unsigned long ipc_private_check;
     struct receiving_threads threads;
+};
+
+
+struct tag_levels_list{
+
+    struct tag_level_list *next;
+    struct tag_level_list *prev;
+    struct tag_level level;
+    //for a faster lookup
+    struct int level_num;
 };
 
 
@@ -35,12 +44,12 @@ struct tag_service{
     pid_t creator_pid;
     uid_t creator_euid;
     int permission;
-    struct tag_level *tag_levels[TAG_LEVELS_NUM];
-
-    //The cleaner (softirq bh) has to be diabled with spin_lock_bh(removing)
+    unsigned long ipc_private_check;
+    struct tag_level *tag_levels_list;
     spinlock_t removing;
-}__attribute__((align(64)));
+};
 
 
 //TODO check allignment and false cache sharing
 struct tag_service *tag_table[TBL_ENTRIES_NUM] __attribute__((align(8)));
+DEFINE_MUTEX(tag_tbl_mtx);
