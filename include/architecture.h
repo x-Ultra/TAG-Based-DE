@@ -46,10 +46,11 @@ struct tag_service{
     int permission;
     unsigned long ipc_private_check;
     struct tag_level *tag_levels_list;
-    spinlock_t removing;
 };
 
 
 //TODO check allignment and false cache sharing
 struct tag_service *tag_table[TBL_ENTRIES_NUM] __attribute__((align(8)));
-DEFINE_MUTEX(tag_tbl_mtx);
+//spinlock used by soft irq (cleaner) and kernel thread. Used spin_lock_hb() form kernel thread !
+spinlock_t tag_tbl_spin = SPINLOCK_UNLOCKED;
+int used_keys[TBL_ENTRIES_NUM];

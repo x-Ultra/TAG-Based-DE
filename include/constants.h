@@ -31,6 +31,7 @@
 #define MOD_INUSE -5
 #define ERR_KMALLOC -7
 #define MAX_ERR_MESS_LEN 1024
+#define UNEXPECTED -9
 
 //tag_get error codes
 #define KEY_USED -1
