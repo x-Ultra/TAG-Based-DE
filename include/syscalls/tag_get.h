@@ -52,8 +52,7 @@ int merge_rnd_descriptor(int rnd, int descriptor)
     //Descriptor
     //00000000-00000000-00001111-11111111
     if(descriptor >= MAX_PRIVATE_TAGS){
-        printk(KERN_ALERT "%s: ipc private descriptor is more that expected ?!", TAG_GET);
-        tag_get_error(UNEXPECTED);
+        printk(KENREL_ALERT "%s: Ipc private descriptor is more that expected ?!", TAG_GET);
         return UNEXPECTED;
     }
 
@@ -62,25 +61,22 @@ int merge_rnd_descriptor(int rnd, int descriptor)
     //      ^                       ^
     //      |                       |
     //the "private key"  "the real descriptor"
-    return (rnd << PRIV_TAG_BIT) & descriptor;
+    return (rnd << PRIV_TAG_BIT) | descriptor;
 }
 
 
-//TODO fix here and check if working ! ! ! !
-unsigned long integer_xor(int *rnd, void *addr)
+unsigned long integer_xor(int rnd, unsigned long addr)
 {
     int i;
     unsigned long xorred = 0;
-    unsigned long adjusted_rnd = rnd;
+    unsigned long adjusted_rnd = 0;
 
-    //adjust key depending on PRIV_TAG_BIT value
-    *rnd = *rnd >> PRIV_TAG_BIT;
-
-    adjusted_rnd = rnd;
+    adjusted_rnd = (unsigned long) (rnd);
     //lets make sure that only the relevant bits are non-zero
     adjusted_rnd = adjusted_rnd << (sizeof(void *)-(sizeof(int)));
     adjusted_rnd = adjusted_rnd >> (sizeof(void *)-(sizeof(int)));
     adjusted_rnd = adjusted_rnd << 11;
+    printf("Adjusted_rnd: %lu\n", adjusted_rnd);
 
     //                     What are we doing here ?
     //void *addr =
@@ -93,9 +89,7 @@ unsigned long integer_xor(int *rnd, void *addr)
     //used to specify the page offset.
 
     //do the XOR between rnd and addr (starting from 11-th bit of addr)
-    for(i = 11; i < sizeof(void *); i++){
-        xorred = addr ^ adjusted_rnd;
-    }
+    xorred = (unsigned long)addr ^ adjusted_rnd;
 
     return xorred;
 }
@@ -111,7 +105,6 @@ int set_up_tag_level(struct tag_service *new_service, int key, int permission)
 		return ERR_KMALLOC;
 	}
     tag_levels_list->level_num = NO_TAG_LEVELS;
-
     new_service->creator_pid = current->pid;
     new_service->creator_euid = current_euid();
     new_service->key = key;
@@ -129,11 +122,13 @@ int set_up_tag_level(struct tag_service *new_service, int key, int permission)
     if(key == TAG_IPC_PRIVATE){
         while(rnd == 0)
             get_random_bytes(&rnd, 4);
+        //adjust random depending on PRIV_TAG_BIT value
+        rnd = rnd >> PRIV_TAG_BIT;
 
         if(rnd < 0)
             rnd = -rnd;
         //the value of rnd will be adjusted depending on PRIV_TAG_BIT
-        new_service->ipc_private_check = integer_xor(&rnd, new_service->tag_levels_list);
+        new_service->ipc_private_check = integer_xor(rnd, new_service->tag_levels_list);
         return rnd;
     }
 
