@@ -1,5 +1,5 @@
 //number of tag services (tag table entries)
-#define TBL_ENTRIES_NUM 256;
+#define TBL_ENTRIES_NUM 256
 
 //prsmission types
 #define PERMISSION_USER 0
@@ -28,10 +28,9 @@
 #define TAG_DRIVER "tag_driver"
 
 //generalerror codes
-#define MOD_INUSE -5
-#define ERR_KMALLOC -7
-#define MAX_ERR_MESS_LEN 1024
-#define UNEXPECTED -9
+#define MOD_INUSE -1001
+#define ERR_KMALLOC -1002
+#define UNEXPECTED -1003
 
 //tag_get error codes
 #define KEY_USED -1

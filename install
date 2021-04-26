@@ -2,5 +2,12 @@
 #! /bin/bash
 
 make
+cd SyscallAdder
+make
+./install ~
+cd ..
+make
 sudo insmod tagservice.ko
 dmesg | tail | grep "TAG Service"
+cd test/system
+make

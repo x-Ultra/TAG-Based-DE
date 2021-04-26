@@ -13,7 +13,7 @@ void tag_get_error(int errorcode)
             printk(KERN_ERR "%s: Tag Open on private key not permitted", TAG_GET);
             break;
         case INVALID_CMD:
-            printk(KERN_ERR "%s: Command value incorrect");
+            printk(KERN_ERR "%s: Command value incorrect", TAG_GET);
             break;
         case KEY_NOT_FOUND:
             printk(KERN_ERR "%s: Key was not found", TAG_GET);
@@ -37,10 +37,10 @@ void tag_get_error(int errorcode)
             printk(KERN_ERR "%s: Tag Table is full, try again later", TAG_GET);
             break;
         case UNEXPECTED:
-            printk(KERT_ALERT "%s: Unexpected error, check previous message ", TAG_GET);
+            printk(KERN_ALERT "%s: Unexpected error, check previous message", TAG_GET);
             break;
         default:
-            printk(KERN_ERR "%s: Unknown error", TAG_GET);
+            printk(KERN_ALERT "%s: Unknown error", TAG_GET);
     }
 }
 
@@ -52,7 +52,7 @@ int merge_rnd_descriptor(int rnd, int descriptor)
     //Descriptor
     //00000000-00000000-00001111-11111111
     if(descriptor >= MAX_PRIVATE_TAGS){
-        printk(KENREL_ALERT "%s: Ipc private descriptor is more that expected ?!", TAG_GET);
+        printk(KERN_ALERT "%s: Ipc private descriptor is more that expected ?!", TAG_GET);
         return UNEXPECTED;
     }
 
@@ -67,7 +67,6 @@ int merge_rnd_descriptor(int rnd, int descriptor)
 
 unsigned long integer_xor(int rnd, unsigned long addr)
 {
-    int i;
     unsigned long xorred = 0;
     unsigned long adjusted_rnd = 0;
 
@@ -76,7 +75,6 @@ unsigned long integer_xor(int rnd, unsigned long addr)
     adjusted_rnd = adjusted_rnd << (sizeof(void *)-(sizeof(int)));
     adjusted_rnd = adjusted_rnd >> (sizeof(void *)-(sizeof(int)));
     adjusted_rnd = adjusted_rnd << 11;
-    printf("Adjusted_rnd: %lu\n", adjusted_rnd);
 
     //                     What are we doing here ?
     //void *addr =
@@ -98,18 +96,20 @@ unsigned long integer_xor(int rnd, unsigned long addr)
 int set_up_tag_level(struct tag_service *new_service, int key, int permission)
 {
     int rnd = 0;
-    struct tag_level *tag_levels_list;
+    struct tag_levels_list *tag_levels;
 
-    if((tag_levels_list = (struct tag_level *)kmalloc(sizeof(struct tag_level), GFP_KERNEL)) == NULL){
-		printk(KERN_ERR "%s: Unable to alloc tag_level", TAG_GET)
+    if((tag_levels = (struct tag_levels_list *)kmalloc(sizeof(struct tag_level), GFP_KERNEL)) == NULL){
+		printk(KERN_ERR "%s: Unable to alloc tag_level", TAG_GET);
 		return ERR_KMALLOC;
 	}
-    tag_levels_list->level_num = NO_TAG_LEVELS;
+    tag_levels->level_num = NO_TAG_LEVELS;
+    tag_levels->prev = NULL;
+    tag_levels->next = NULL;
     new_service->creator_pid = current->pid;
     new_service->creator_euid = current_euid();
     new_service->key = key;
     new_service->permission = permission;
-    new_service->tag_levels_list = tag_levels_list;
+    new_service->tag_levels = tag_levels;
 
 
     //upon accesing an ipc_private tag_service, it will be checked
@@ -128,7 +128,7 @@ int set_up_tag_level(struct tag_service *new_service, int key, int permission)
         if(rnd < 0)
             rnd = -rnd;
         //the value of rnd will be adjusted depending on PRIV_TAG_BIT
-        new_service->ipc_private_check = integer_xor(rnd, new_service->tag_levels_list);
+        new_service->ipc_private_check = integer_xor(rnd, (unsigned long)new_service->tag_levels);
         return rnd;
     }
 
@@ -142,9 +142,6 @@ int create_tag_service(int key, int permission)
     //Check if key was already assigned
     int descriptor, max_descriptors, free_key_entry, rnd;
     struct tag_service *new_service;
-
-    //2. introduce and implement ipc_private tag service generation
-    //3. test
 
     //finding out if key is already used
     for(free_key_entry = 0; free_key_entry < TBL_ENTRIES_NUM; free_key_entry++){
@@ -184,7 +181,7 @@ int create_tag_service(int key, int permission)
 
     //Creating tag table entry
     if((new_service = (struct tag_service *)kmalloc(sizeof(struct tag_service), GFP_KERNEL)) == NULL){
-		printk(KERN_ERR "%s: Unable to alloc tag_service", TAG_GET)
+		printk(KERN_ERR "%s: Unable to alloc tag_service", TAG_GET);
 		return ERR_KMALLOC;
 	}
 
@@ -197,6 +194,10 @@ int create_tag_service(int key, int permission)
     tag_table[descriptor] = new_service;
     spin_unlock(&tag_tbl_spin);
 
+    //TODO starting a timer or whatever, for the cleaner
+    //TODO, the cleaner could also receive the rnd, and use to delete the
+    //      tag table entry. In this way we can remove pc_private check from tag tbl entry.
+
     if(key != TAG_IPC_PRIVATE)
         return descriptor;
 
@@ -208,40 +209,38 @@ int create_tag_service(int key, int permission)
 int fetch_tag_desc(int key, int permission)
 {
     int descriptor;
-    uid_t EUID;
-    struct tag_service *current_entry = tag_table[0]
+    kuid_t EUID;
+    struct tag_service *current_entry = tag_table[0];
 
     //Check key type
     if(key == TAG_IPC_PRIVATE)
         return PRIVATE_OPEN;
 
     //scaninng tag table
+    spin_lock_bh(&tag_tbl_spin);
     for(descriptor = 0; descriptor < TBL_ENTRIES_NUM; descriptor++){
 
         current_entry = tag_table[descriptor];
-        //if the cleaner has acquired the entry it will be
-        //deleted soon, so skip this entry
-        if(!spin_trylock(current_entry->removing))
-            continue;
 
         if(current_entry == NULL){
-            spin_unlock(current_entry->removing);
+            spin_unlock(&tag_tbl_spin);
             return KEY_NOT_FOUND;
         }
         if(current_entry->key == key){
             break;
         }
-        if(i == TBL_ENTRIES_NUM-1){
-            spin_unlock(current_entry->removing);
+        if(descriptor == TBL_ENTRIES_NUM-1){
+            spin_unlock(&tag_tbl_spin);
             return KEY_NOT_FOUND;
         }
-        spin_unlock(current_entry->removing);
+
     }
+    spin_unlock(&tag_tbl_spin);
 
     //perform checks based on permission value of current_entry
     if(permission == PERMISSION_USER){
         EUID = current_euid();
-        if(EUID != current_entry->creator_euid){
+        if(!uid_eq(EUID, current_entry->creator_euid)){
             return INVALID_EUID;
         }
     }
