@@ -98,6 +98,9 @@ int set_up_tag_level(struct tag_service *new_service, int key, int permission)
     int rnd = 0;
     struct tag_levels_list *tag_levels;
 
+    AUDIT
+        printk(KERN_DEBUG "%s: Setting up tag level", TAG_GET);
+
     if((tag_levels = (struct tag_levels_list *)kmalloc(sizeof(struct tag_level), GFP_KERNEL)) == NULL){
 		printk(KERN_ERR "%s: Unable to alloc tag_level", TAG_GET);
 		return ERR_KMALLOC;
@@ -111,6 +114,9 @@ int set_up_tag_level(struct tag_service *new_service, int key, int permission)
     new_service->permission = permission;
     new_service->tag_levels = tag_levels;
 
+    AUDIT
+        printk(KERN_DEBUG "%s: new_service setup ok", TAG_GET);
+    return 3;
 
     //upon accesing an ipc_private tag_service, it will be checked
     //that integer_xor(fisrt-X-bits-of(Descriptor)=rnd, tag_service->ipc_private_check)
@@ -143,6 +149,8 @@ int create_tag_service(int key, int permission)
     int descriptor, max_descriptors, free_key_entry, rnd;
     struct tag_service *new_service;
 
+    printk(KERN_ALERT "%s: Creating tag called", TAG_GET);
+
     //finding out if key is already used
     for(free_key_entry = 0; free_key_entry < TBL_ENTRIES_NUM; free_key_entry++){
         if(used_keys[free_key_entry] == -1){
@@ -154,6 +162,9 @@ int create_tag_service(int key, int permission)
     if(free_key_entry == TBL_ENTRIES_NUM){
         return TAG_TBL_FULL;
     }
+    AUDIT
+        printk(KERN_DEBUG "%s: Free entry: %d", TAG_GET, free_key_entry);
+    return 3;
     //here we are sure that nobody has used the same key for a tag service
 
     //finding a free descriptor in tag_table, depending
@@ -169,6 +180,8 @@ int create_tag_service(int key, int permission)
     //the tag_table counld be accessed by a softirq (the 'cleaner')
     //so cpin lock bottom halves should be used
     spin_lock_bh(&tag_tbl_spin);
+    AUDIT
+        printk(KERN_DEBUG "%s: Spinlock bh called", TAG_GET);
     //scanning the tag_table for a free entry
     for(;descriptor < max_descriptors; descriptor++){
         if(tag_table[descriptor] == NULL)
@@ -178,6 +191,8 @@ int create_tag_service(int key, int permission)
         printk(KERN_ALERT "TAG table is full, but not used_keys. This should not have happened");
         return UNEXPECTED;
     }
+    AUDIT
+        printk(KERN_DEBUG "%s: Descriptor found: %d", TAG_GET, descriptor);
 
     //Creating tag table entry
     if((new_service = (struct tag_service *)kmalloc(sizeof(struct tag_service), GFP_KERNEL)) == NULL){
@@ -193,6 +208,8 @@ int create_tag_service(int key, int permission)
     used_keys[free_key_entry] = key;
     tag_table[descriptor] = new_service;
     spin_unlock(&tag_tbl_spin);
+    AUDIT
+        printk(KERN_DEBUG "%s: Spin unloked", TAG_GET);
 
     //TODO starting a timer or whatever, for the cleaner
     //TODO, the cleaner could also receive the rnd, and use to delete the
@@ -211,6 +228,9 @@ int fetch_tag_desc(int key, int permission)
     int descriptor;
     kuid_t EUID;
     struct tag_service *current_entry = tag_table[0];
+
+    printk(KERN_ALERT "%s: Fetching tag called", TAG_GET);
+    return 3;
 
     //Check key type
     if(key == TAG_IPC_PRIVATE)
@@ -253,14 +273,16 @@ asmlinkage int tag_get(int key, int command, int permission)
 {
     int tag_descriptor;
 
+    /*
     if(try_module_get(THIS_MODULE) == 0){
 		return MOD_INUSE;
 	}
+    */
 
     //key reserved
     if(key == -1){
         tag_get_error(KEY_RESERVED);
-        module_put(THIS_MODULE);
+        //module_put(THIS_MODULE);
         return KEY_RESERVED;
     }
 
@@ -281,6 +303,6 @@ asmlinkage int tag_get(int key, int command, int permission)
             return -1;
     }
 
-    module_put(THIS_MODULE);
+    //module_put(THIS_MODULE);
     return tag_descriptor;
 }

@@ -47,7 +47,7 @@ static int __init install(void)
 		printk("%s: Unable to tag_get\n", MODNAME);
 	}
 
-	return -1;
+	return 0;
 }
 
 static void __exit uninstall(void)

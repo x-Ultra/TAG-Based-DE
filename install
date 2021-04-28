@@ -2,7 +2,7 @@
 #! /bin/bash
 
 make
-cd SyscallAdder
+cd SyscallAdderV2
 make
 ./install ~
 cd ..

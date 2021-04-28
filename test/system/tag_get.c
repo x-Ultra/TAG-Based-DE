@@ -16,14 +16,13 @@ int main(int argc, char **argv)
 	command = CMD_CREATE;
 	permission = PERMISSION_ANY;
 
-	//private key
-	ret = tag_get(TAG_IPC_PRIVATE, command, permission);
-	printf("Syscall returned %d\n", ret);
-
-	//private key
 	key = 30;
 	ret = tag_get(key, command, permission);
 	printf("Syscall returned %d\n", ret);
+
+	//private key
+	//ret = tag_get(TAG_IPC_PRIVATE, command, permission);
+	//printf("Syscall returned %d\n", ret);
 
 	return 0;
 }

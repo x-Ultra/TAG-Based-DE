@@ -41,6 +41,7 @@
 #define KEY_RESERVED -6
 #define SERVICE_SETUP_FAIED -7
 #define TAG_TBL_FULL -8
+#define DEBUG 1
 
 #ifdef DEBUG
 #define AUDIT if(1)
