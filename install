@@ -2,10 +2,18 @@
 #! /bin/bash
 
 make
+s=$(find . -name "SyscallAdderV2")
+if [ ${#s} -eq 0 ];
+then
+    git clone https://github.com/x-Ultra/SyscallAdderV2
+fi
 cd SyscallAdderV2
 make
-./install ~
+./install
 cd ..
+#Inserting complete path in template/Makefile
+echo KBUILD_EXTRA_SYMBOLS := $PWD/SyscallAdderV2/Module.symvers >> Makefile
+cat MakefileTemp >> Makefile
 make
 sudo insmod tagservice.ko
 dmesg | tail | grep "TAG Service"

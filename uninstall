@@ -1,6 +1,7 @@
 #! /bin/bash
 
-SyscallAdder/uninstall ~
+SyscallAdderV2/uninstall ~
 sudo rmmod tagservice
 make clean
+rm Makefile
 dmesg | tail | grep "TAG Service"

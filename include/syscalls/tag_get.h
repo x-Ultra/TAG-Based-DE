@@ -116,7 +116,6 @@ int set_up_tag_level(struct tag_service *new_service, int key, int permission)
 
     AUDIT
         printk(KERN_DEBUG "%s: new_service setup ok", TAG_GET);
-    return 3;
 
     //upon accesing an ipc_private tag_service, it will be checked
     //that integer_xor(fisrt-X-bits-of(Descriptor)=rnd, tag_service->ipc_private_check)
@@ -164,7 +163,6 @@ int create_tag_service(int key, int permission)
     }
     AUDIT
         printk(KERN_DEBUG "%s: Free entry: %d", TAG_GET, free_key_entry);
-    return 3;
     //here we are sure that nobody has used the same key for a tag service
 
     //finding a free descriptor in tag_table, depending
@@ -179,9 +177,10 @@ int create_tag_service(int key, int permission)
 
     //the tag_table counld be accessed by a softirq (the 'cleaner')
     //so cpin lock bottom halves should be used
-    spin_lock_bh(&tag_tbl_spin);
+    spin_lock(&tag_tbl_spin);
     AUDIT
         printk(KERN_DEBUG "%s: Spinlock bh called", TAG_GET);
+
     //scanning the tag_table for a free entry
     for(;descriptor < max_descriptors; descriptor++){
         if(tag_table[descriptor] == NULL)
@@ -206,7 +205,11 @@ int create_tag_service(int key, int permission)
 
     //inserting the new entry in used_keys & tag_table
     used_keys[free_key_entry] = key;
+    AUDIT
+        printk(KERN_DEBUG "%s: Updated used keys", TAG_GET);
     tag_table[descriptor] = new_service;
+    AUDIT
+        printk(KERN_DEBUG "%s: Updated tag table", TAG_GET);
     spin_unlock(&tag_tbl_spin);
     AUDIT
         printk(KERN_DEBUG "%s: Spin unloked", TAG_GET);
