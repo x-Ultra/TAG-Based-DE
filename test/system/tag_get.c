@@ -4,7 +4,7 @@
 #include <string.h>
 #include <sys/syscall.h>
 
-#include "/home/ezio/custom_syscall_macros.h"
+#include "../macro_file_path.h"
 
 //tag_service constants
 #include "../../include/constants.h"
