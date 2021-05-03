@@ -17,6 +17,7 @@ void tag_get_error(int errorcode)
             break;
         case KEY_NOT_FOUND:
             printk(KERN_ERR "%s: Key was not found", TAG_GET);
+            prevent_bruteforce(TAG_GET);
             break;
         case INVALID_EUID:
             printk(KERN_ERR "%s: Invalid EUID", TAG_GET);
@@ -45,57 +46,40 @@ void tag_get_error(int errorcode)
 }
 
 
+//Remove after testing
+void retreive_descriptor_pwd(unsigned int merged)
+{
+    int descriptor;
+    unsigned int pwd;
+
+    printk(KERN_DEBUG "%s: merged descriptor: %u", TAG_GET, merged);
+
+    pwd = merged >> (sizeof(unsigned int)*8 -PRIV_PWD_BITS);
+    descriptor = (merged << PRIV_PWD_BITS) >> PRIV_PWD_BITS;
+    printk(KERN_DEBUG "%s: Reteiving info. Descriptor: %d, Pwd: %u", TAG_GET, descriptor, pwd);
+}
+
+
 int merge_rnd_descriptor(int rnd, int descriptor)
 {
-    //rnd will be like (if PRIV_TAG_BIT = 12)
+    //rnd will be like (if PRIV_PWD_BITS = 20)
     //00000000-00005678-12345678-12345678
     //Descriptor
     //00000000-00000000-00001111-11111111
-    if(descriptor >= MAX_PRIVATE_TAGS){
-        printk(KERN_ALERT "%s: Ipc private descriptor is more that expected ?!", TAG_GET);
-        return UNEXPECTED;
-    }
+
 
     //the expected result:
     //12345678-12345678-56781111-11111111
     //      ^                       ^
     //      |                       |
-    //the "private key"  "the real descriptor"
-    return (rnd << PRIV_TAG_BIT) | descriptor;
-}
-
-
-unsigned long integer_xor(int rnd, unsigned long addr)
-{
-    unsigned long xorred = 0;
-    unsigned long adjusted_rnd = 0;
-
-    adjusted_rnd = (unsigned long) (rnd);
-    //lets make sure that only the relevant bits are non-zero
-    adjusted_rnd = adjusted_rnd << (sizeof(void *)-(sizeof(int)));
-    adjusted_rnd = adjusted_rnd >> (sizeof(void *)-(sizeof(int)));
-    adjusted_rnd = adjusted_rnd << 11;
-
-    //                     What are we doing here ?
-    //void *addr =
-    //12345678-12345678-12345678-12345678-12345678-12345678-12345678-12345678
-    //XOR
-    //adjusted_rnd =                (IF PRIV_TAG_BIT = 12, RND BIT = 20
-    //00000000-00000000-00000000-00000000-02345678-12345678-12345000-00000000
-    //the fact that the first 11 bits are not xorred is because the most
-    //relevant information is contained from the 12-th bit on, and not from the ones
-    //used to specify the page offset.
-
-    //do the XOR between rnd and addr (starting from 11-th bit of addr)
-    xorred = (unsigned long)addr ^ adjusted_rnd;
-
-    return xorred;
+    //"private pwd"        "real descriptor"
+    return (rnd << (sizeof(unsigned int)*4 - PRIV_PWD_BITS)) | descriptor;
 }
 
 
 int set_up_tag_level(struct tag_service *new_service, int key, int permission)
 {
-    int rnd = 0;
+    unsigned int rnd = 0;
     struct tag_levels_list *tag_levels;
 
     AUDIT
@@ -118,8 +102,8 @@ int set_up_tag_level(struct tag_service *new_service, int key, int permission)
         printk(KERN_DEBUG "%s: new_service setup ok", TAG_GET);
 
     //upon accesing an ipc_private tag_service, it will be checked
-    //that integer_xor(fisrt-X-bits-of(Descriptor)=rnd, tag_service->ipc_private_check)
-    //is equal to the address of tag_service->tag_levels_list.
+    //that tag_service->ipc_private_pwd
+    //is equal to the MOST significat PRIV_PWD_BITS bits (check merge_rnd_descriptor).
     //In this way only the owner of the descriptor (and his childs), will be
     //able to access the tag_service information.
     //This mechanism is introduced due to avoid an arbitraty thread to acces
@@ -127,13 +111,13 @@ int set_up_tag_level(struct tag_service *new_service, int key, int permission)
     if(key == TAG_IPC_PRIVATE){
         while(rnd == 0)
             get_random_bytes(&rnd, 4);
-        //adjust random depending on PRIV_TAG_BIT value
-        rnd = rnd >> PRIV_TAG_BIT;
+        //adjust random depending on PRIV_PWD_BITS value
+        rnd = rnd >> (sizeof(unsigned int)*8 - PRIV_PWD_BITS);
 
         if(rnd < 0)
             rnd = -rnd;
-        //the value of rnd will be adjusted depending on PRIV_TAG_BIT
-        new_service->ipc_private_check = integer_xor(rnd, (unsigned long)new_service->tag_levels);
+
+        new_service->ipc_private_pwd = rnd;
         return rnd;
     }
 
@@ -145,48 +129,44 @@ int set_up_tag_level(struct tag_service *new_service, int key, int permission)
 int create_tag_service(int key, int permission)
 {
     //Check if key was already assigned
-    int descriptor, max_descriptors, free_key_entry, rnd;
+    int descriptor, free_key_entry = 0;
+    unsigned int rnd;
     struct tag_service *new_service;
 
     printk(KERN_ALERT "%s: Creating tag called", TAG_GET);
 
-    //finding out if key is already used
-    for(free_key_entry = 0; free_key_entry < TBL_ENTRIES_NUM; free_key_entry++){
-        if(used_keys[free_key_entry] == -1){
-            break;
-        }else if(used_keys[free_key_entry] == key){
-            return KEY_USED;
+    //finding out if key is already used, if not private
+    if(key != TAG_IPC_PRIVATE){
+        for(free_key_entry = 0; free_key_entry < TBL_ENTRIES_NUM; free_key_entry++){
+            if(used_keys[free_key_entry] == -1){
+                break;
+            }else if(used_keys[free_key_entry] == key){
+                return KEY_USED;
+            }
         }
-    }
-    if(free_key_entry == TBL_ENTRIES_NUM){
-        return TAG_TBL_FULL;
-    }
-    AUDIT
-        printk(KERN_DEBUG "%s: Free entry: %d", TAG_GET, free_key_entry);
-    //here we are sure that nobody has used the same key for a tag service
-
-    //finding a free descriptor in tag_table, depending
-    //on whether the key is private or not
-    if(key == TAG_IPC_PRIVATE){
-        descriptor = 0;
-        max_descriptors = MAX_PRIVATE_TAGS;
-    }else{
-        descriptor = MAX_PRIVATE_TAGS;
-        max_descriptors = TBL_ENTRIES_NUM;
+        if(free_key_entry == TBL_ENTRIES_NUM){
+            return TAG_TBL_FULL;
+        }
+        AUDIT
+            printk(KERN_DEBUG "%s: Free entry: %d", TAG_GET, free_key_entry);
+        //here we are sure that nobody has used the same key for a tag service
     }
 
-    //the tag_table counld be accessed by a softirq (the 'cleaner')
-    //so cpin lock bottom halves should be used
+    //Finding a free descriptor in tag_table.
+    //The tag_table counld be accessed by a softirq (the 'cleaner')
+    //so spin lock bottom halves should be used.
+
+    //spinn_lock_bh(&tag_tbl_spin); <---- FIX, no working
     spin_lock(&tag_tbl_spin);
     AUDIT
         printk(KERN_DEBUG "%s: Spinlock bh called", TAG_GET);
 
     //scanning the tag_table for a free entry
-    for(;descriptor < max_descriptors; descriptor++){
+    for(descriptor = 0 ;descriptor < TBL_ENTRIES_NUM; descriptor++){
         if(tag_table[descriptor] == NULL)
             break;
     }
-    if(descriptor == max_descriptors){
+    if(descriptor == TBL_ENTRIES_NUM){
         printk(KERN_ALERT "TAG table is full, but not used_keys. This should not have happened");
         return UNEXPECTED;
     }
@@ -204,7 +184,8 @@ int create_tag_service(int key, int permission)
     }
 
     //inserting the new entry in used_keys & tag_table
-    used_keys[free_key_entry] = key;
+    if(key != TAG_IPC_PRIVATE)
+        used_keys[free_key_entry] = key;
     AUDIT
         printk(KERN_DEBUG "%s: Updated used keys", TAG_GET);
     tag_table[descriptor] = new_service;
@@ -214,12 +195,11 @@ int create_tag_service(int key, int permission)
     AUDIT
         printk(KERN_DEBUG "%s: Spin unloked", TAG_GET);
 
-    //TODO starting a timer or whatever, for the cleaner
-    //TODO, the cleaner could also receive the rnd, and use to delete the
-    //      tag table entry. In this way we can remove pc_private check from tag tbl entry.
-
     if(key != TAG_IPC_PRIVATE)
         return descriptor;
+
+    AUDIT
+        retreive_descriptor_pwd(merge_rnd_descriptor(rnd, descriptor));
 
     return merge_rnd_descriptor(rnd, descriptor);
 }
@@ -271,9 +251,12 @@ int fetch_tag_desc(int key, int permission)
     return descriptor;
 }
 
-
-asmlinkage int tag_get(int key, int command, int permission)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+__SYSCALL_DEFINEx(3, _tag_get, int, key, int, command, int, permission){
+#else
+asmlinkage int sys_tag_get(int key, int command, int permission)
 {
+#endif
     int tag_descriptor;
 
     /*
@@ -309,3 +292,7 @@ asmlinkage int tag_get(int key, int command, int permission)
     //module_put(THIS_MODULE);
     return tag_descriptor;
 }
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+static unsigned long sys_tag_get = (unsigned long) __x64_sys_tag_get;
+#else
+#endif

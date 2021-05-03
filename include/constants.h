@@ -1,5 +1,7 @@
 //number of tag services (tag table entries)
 #define TBL_ENTRIES_NUM 256
+//bits reserved to the passwrd. What password ? Check tag_get.h
+unsigned long PRIV_PWD_BITS;
 
 //prsmission types
 #define PERMISSION_USER 0
@@ -11,11 +13,6 @@
 
 //ipc private constants
 #define TAG_IPC_PRIVATE 0
-//12 bit -> 2^12=4096 IPC private tag services maximum
-//their descriptor has to go from 0 to (2^12)-1
-#define PRIV_TAG_BIT 12
-//this has to be 2^PRIV_TAG_BIT !
-#define MAX_PRIVATE_TAGS 4096
 
 //used in level initialization
 #define NO_TAG_LEVELS -1

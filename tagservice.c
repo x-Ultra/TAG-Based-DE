@@ -14,8 +14,13 @@
 //uid functions
 #include <linux/cred.h>
 #include <linux/uidgid.h>
+//versions checks
+#include <linux/version.h>
+//syscall definition
+#include <linux/syscalls.h>
 
 #include "include/architecture.h"
+#include "include/security.h"
 #include "include/syscalls/tag_get.h"
 
 #define MODNAME "TAG Service"
@@ -33,7 +38,7 @@ int tag_get_indx;
 
 static int __init install(void)
 {
-	int i;
+	int i, temp;
 
 	//init static data
 	for(i = 0; i < TBL_ENTRIES_NUM; i++){
@@ -41,10 +46,25 @@ static int __init install(void)
 		used_keys[i] = -1;
 	}
 
+	//setting PRIV_TAG_BITS variable value
+	i = 0;
+	temp = TBL_ENTRIES_NUM;
+	while(temp != 0){
+		temp = temp >> 1;
+		i += 1;
+	}
+	//PRIV_TAG_BITS has to have a minimum value to prevent easy bruteforce attack
+	PRIV_PWD_BITS = (sizeof(unsigned long)*8 - i);
+	if(PRIV_PWD_BITS <= 0){
+		printk(KERN_ERR "%s: Invalid value of PRIV_PWD_BITS, please decrease TBL_ENTRIES_NUM value", MODNAME);
+		return -1;
+	}
+
 	//adding Systemcalls
 	printk(KERN_DEBUG "%s: Adding %s\n", MODNAME, "tag_get");
-	if((tag_get_indx = syscall_adder(tag_get, "tag_get", 7, 3)) == -1){
-		printk("%s: Unable to tag_get\n", MODNAME);
+	if((tag_get_indx = syscall_adder((void *)sys_tag_get, "tag_get", 7, 3)) == -1){
+		printk(KERN_ERR "%s: Unable to tag_get\n", MODNAME);
+		return -1;
 	}
 
 	return 0;

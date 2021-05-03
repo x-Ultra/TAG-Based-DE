@@ -21,8 +21,8 @@ int main(int argc, char **argv)
 	printf("Syscall returned %d\n", ret);
 
 	//private key
-	//ret = tag_get(TAG_IPC_PRIVATE, command, permission);
-	//printf("Syscall returned %d\n", ret);
+	ret = tag_get(TAG_IPC_PRIVATE, command, permission);
+	printf("Syscall returned %d\n", ret);
 
 	return 0;
 }

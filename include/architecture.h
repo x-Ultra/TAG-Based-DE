@@ -43,8 +43,7 @@ struct tag_service{
     pid_t creator_pid;
     kuid_t creator_euid;
     int permission;
-    //TODO, remove ipc_privete_check, after implementing rnd passing to clener
-    unsigned long ipc_private_check;
+    unsigned int ipc_private_pwd;
     struct tag_levels_list *tag_levels;
 };
 
