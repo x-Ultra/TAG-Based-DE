@@ -55,7 +55,7 @@ static int __init install(void)
 		i += 1;
 	}
 	//PRIV_TAG_BITS has to have a minimum value to prevent easy bruteforce attack
-	PRIV_PWD_BITS = (sizeof(unsigned long)*8 - i);
+	PRIV_PWD_BITS = (sizeof(unsigned long)*8 - i); //-1 because we want positive "merged descriptors"
 	if(PRIV_PWD_BITS <= 0){
 		printk(KERN_ERR "%s: Invalid value of PRIV_PWD_BITS, please decrease TBL_ENTRIES_NUM value", MODNAME);
 		return -1;

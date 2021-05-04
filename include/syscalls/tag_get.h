@@ -69,7 +69,7 @@ int merge_rnd_descriptor(int rnd, int descriptor)
 
 
     //the expected result:
-    //12345678-12345678-56781111-11111111
+    //02345678-12345678-56781111-11111111
     //      ^                       ^
     //      |                       |
     //"private pwd"        "real descriptor"
