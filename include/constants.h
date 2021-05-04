@@ -7,9 +7,12 @@ unsigned long PRIV_PWD_BITS;
 #define PERMISSION_USER 0
 #define PERMISSION_ANY 1
 
-//Commands types
+//Commands types (tag_get)
 #define CMD_OPEN 0
 #define CMD_CREATE 1
+//Commands types (tag_ctl)
+#define AWAKE_ALL 0
+#define REMOVE 1
 
 //ipc private constants
 #define TAG_IPC_PRIVATE 0
@@ -25,19 +28,26 @@ unsigned long PRIV_PWD_BITS;
 #define TAG_DRIVER "tag_driver"
 
 //generalerror codes
-#define MOD_INUSE -1001
-#define ERR_KMALLOC -1002
-#define UNEXPECTED -1003
+#define MOD_INUSE -3001
+#define ERR_KMALLOC -3002
+#define UNEXPECTED -3003
+
+//common errors on syscalls
+#define INVALID_CMD -1
+#define INVALID_EUID -2
+#define KEY_NOT_FOUND -3
 
 //tag_get error codes
-#define KEY_USED -1
-#define PRIVATE_OPEN -2
-#define INVALID_CMD -3
-#define KEY_NOT_FOUND -4
-#define INVALID_EUID -5
-#define KEY_RESERVED -6
-#define SERVICE_SETUP_FAIED -7
-#define TAG_TBL_FULL -8
+#define KEY_USED -1001
+#define PRIVATE_OPEN -1002
+#define KEY_RESERVED -1003
+#define SERVICE_SETUP_FAIED -1004
+#define TAG_TBL_FULL -1005
+
+//tag_ctl error codes
+#define INVALID_DESCR -2001
+#define SERVICE_IN_USE -2002
+
 #define DEBUG 1
 
 #ifdef DEBUG

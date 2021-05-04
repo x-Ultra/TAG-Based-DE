@@ -22,6 +22,7 @@
 #include "include/architecture.h"
 #include "include/security.h"
 #include "include/syscalls/tag_get.h"
+#include "include/syscalls/tag_ctl.h"
 
 #define MODNAME "TAG Service"
 
@@ -34,7 +35,7 @@ extern int syscall_remover(int syscall_indx);
 extern int syscall_adder(void* syscall_addr, char* syscall_name, int syscall_name_length, int syscall_num_params);
 
 //syscall indexes in syscall table
-int tag_get_indx;
+int tag_get_indx, tag_ctl_indx;
 
 static int __init install(void)
 {
@@ -63,7 +64,12 @@ static int __init install(void)
 	//adding Systemcalls
 	printk(KERN_DEBUG "%s: Adding %s\n", MODNAME, "tag_get");
 	if((tag_get_indx = syscall_adder((void *)sys_tag_get, "tag_get", 7, 3)) == -1){
-		printk(KERN_ERR "%s: Unable to tag_get\n", MODNAME);
+		printk(KERN_ERR "%s: Unable to tag_get", MODNAME);
+		return -1;
+	}
+
+	if((tag_ctl_indx = syscall_adder((void *)sys_tag_ctl, "tag_ctl", 7, 2)) == -1){
+		printk(KERN_ERR "%s: Unable to tag_ctl", MODNAME);
 		return -1;
 	}
 
@@ -79,7 +85,12 @@ static void __exit uninstall(void)
 
 	//removing systemcalls
 	if(syscall_remover(tag_get_indx) == -1){
-		printk(KERN_DEBUG "%s: Unable to remove tag_get_indx", MODNAME);
+		printk(KERN_DEBUG "%s: Unable to remove tag_get", MODNAME);
+		ret = -1;
+	}
+
+	if(syscall_remover(tag_ctl_indx) == -1){
+		printk(KERN_DEBUG "%s: Unable to remove tag_ctl", MODNAME);
 		ret = -1;
 	}
 

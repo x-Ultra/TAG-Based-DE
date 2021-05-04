@@ -168,6 +168,7 @@ int create_tag_service(int key, int permission)
     }
     if(descriptor == TBL_ENTRIES_NUM){
         printk(KERN_ALERT "TAG table is full, but not used_keys. This should not have happened");
+        spin_unlock(&tag_tbl_spin);
         return UNEXPECTED;
     }
     AUDIT
@@ -176,24 +177,22 @@ int create_tag_service(int key, int permission)
     //Creating tag table entry
     if((new_service = (struct tag_service *)kmalloc(sizeof(struct tag_service), GFP_KERNEL)) == NULL){
 		printk(KERN_ERR "%s: Unable to alloc tag_service", TAG_GET);
+        spin_unlock(&tag_tbl_spin);
 		return ERR_KMALLOC;
 	}
 
     if((rnd = set_up_tag_level(new_service, key, permission)) < 0){
+        spin_unlock(&tag_tbl_spin);
         return SERVICE_SETUP_FAIED;
     }
 
     //inserting the new entry in used_keys & tag_table
-    if(key != TAG_IPC_PRIVATE)
+    if(key != TAG_IPC_PRIVATE){
         used_keys[free_key_entry] = key;
-    AUDIT
-        printk(KERN_DEBUG "%s: Updated used keys", TAG_GET);
+    }
+
     tag_table[descriptor] = new_service;
-    AUDIT
-        printk(KERN_DEBUG "%s: Updated tag table", TAG_GET);
     spin_unlock(&tag_tbl_spin);
-    AUDIT
-        printk(KERN_DEBUG "%s: Spin unloked", TAG_GET);
 
     if(key != TAG_IPC_PRIVATE)
         return descriptor;
@@ -286,7 +285,8 @@ asmlinkage int sys_tag_get(int key, int command, int permission)
             break;
         default:
             tag_get_error(INVALID_CMD);
-            return -1;
+            tag_descriptor = INVALID_CMD;
+            break;
     }
 
     //module_put(THIS_MODULE);
