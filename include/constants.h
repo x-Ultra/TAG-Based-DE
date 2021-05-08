@@ -2,6 +2,7 @@
 #define TBL_ENTRIES_NUM 256
 //bits reserved to the passwrd. What password ? Check tag_get.h
 unsigned long PRIV_PWD_BITS;
+unsigned int positron = 1;
 
 //prsmission types
 #define PERMISSION_USER 0

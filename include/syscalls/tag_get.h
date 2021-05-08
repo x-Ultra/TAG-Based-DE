@@ -54,7 +54,7 @@ void retreive_descriptor_pwd(unsigned int merged)
 
     printk(KERN_DEBUG "%s: merged descriptor: %u", TAG_GET, merged);
 
-    pwd = merged >> (sizeof(unsigned int)*8 -PRIV_PWD_BITS);
+    pwd = merged >> (sizeof(unsigned int)*8 - PRIV_PWD_BITS);
     descriptor = (merged << PRIV_PWD_BITS) >> PRIV_PWD_BITS;
     printk(KERN_DEBUG "%s: Reteiving info. Descriptor: %d, Pwd: %u", TAG_GET, descriptor, pwd);
 }
@@ -63,17 +63,17 @@ void retreive_descriptor_pwd(unsigned int merged)
 int merge_rnd_descriptor(int rnd, int descriptor)
 {
     //rnd will be like (if PRIV_PWD_BITS = 20)
-    //00000000-00005678-12345678-12345678
+    //00000000-00000RRR-RRRRRRRR-RRRRRRRR
     //Descriptor
-    //00000000-00000000-00001111-11111111
+    //00000000-00000000-0000DDDD-DDDDDDDD
 
 
     //the expected result:
-    //02345678-12345678-56781111-11111111
+    //0RRRRRRR-RRRRRRRR-RRRRDDDD-DDDDDDD    //NB: the first bit is zero...
     //      ^                       ^
     //      |                       |
     //"private pwd"        "real descriptor"
-    return (rnd << (sizeof(unsigned int)*4 - PRIV_PWD_BITS)) | descriptor;
+    return (rnd << (sizeof(unsigned int)*8 - PRIV_PWD_BITS)) | descriptor;
 }
 
 
@@ -111,13 +111,16 @@ int set_up_tag_level(struct tag_service *new_service, int key, int permission)
     if(key == TAG_IPC_PRIVATE){
         while(rnd == 0)
             get_random_bytes(&rnd, 4);
+
+        //check merge_rnd_descriptor explaination, MSB has to be 0
+        rnd = rnd & positron;
+        AUDIT
+            printk(KERN_DEBUG "%s: Random value: %d", TAG_GET, rnd);
         //adjust random depending on PRIV_PWD_BITS value
         rnd = rnd >> (sizeof(unsigned int)*8 - PRIV_PWD_BITS);
-
-        if(rnd < 0)
-            rnd = -rnd;
-
         new_service->ipc_private_pwd = rnd;
+        AUDIT
+            printk(KERN_DEBUG "%s: Adjusted value: %d, %d", TAG_GET, new_service->ipc_private_pwd, rnd);
         return rnd;
     }
 

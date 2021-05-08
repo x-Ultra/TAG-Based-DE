@@ -61,6 +61,11 @@ static int __init install(void)
 		return -1;
 	}
 
+	//variable used to make positive passwords (check merge_rnd_descriptor in tag_get)
+    for(i = 0; i < sizeof(int)*8-2; i++){
+        positron |= positron << 1;
+    }
+
 	//adding Systemcalls
 	printk(KERN_DEBUG "%s: Adding %s\n", MODNAME, "tag_get");
 	if((tag_get_indx = syscall_adder((void *)sys_tag_get, "tag_get", 7, 3)) == -1){
