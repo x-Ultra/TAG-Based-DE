@@ -28,20 +28,20 @@ int remove_tag_service(int descriptor)
     int priv_descriptor, i, the_key;
     kuid_t EUID;
 
-    AUDIT
-        printk(KERN_ALERT "%s: removing descriptor", TAG_CTL);
-
     //is descriptor good ?
     if((unsigned int)descriptor >= TBL_ENTRIES_NUM){
         //maybe it comes from an IPC_PRIVATE service
         priv_descriptor = (descriptor << PRIV_PWD_BITS) >> PRIV_PWD_BITS;
         //let's do the check again
-        if((unsigned int)priv_descriptor >= TBL_ENTRIES_NUM){
+        if(priv_descriptor >= TBL_ENTRIES_NUM || priv_descriptor < 0){
             return INVALID_DESCR;
         }
         descriptor = priv_descriptor;
     }
+
     if(tag_table[descriptor] == NULL){
+        AUDIT
+            printk(KERN_ERR "%s: tag_table[descriptor] is NULL", TAG_CTL);
         return INVALID_DESCR;
     }
     AUDIT
@@ -87,15 +87,14 @@ int remove_tag_service(int descriptor)
     if(tag_service->key != TAG_IPC_PRIVATE){
         the_key = tag_service->key;
         for(i = 0; i < TBL_ENTRIES_NUM; i++){
-            if(used_keys[i] == -1){
+            if(used_keys[i] == the_key){
                 //removing could be performed
-                used_keys[the_key] = used_keys[i-1];
-                used_keys[i-1] = -1;
+                used_keys[i] = used_keys[num_used_keys-1];
+                used_keys[num_used_keys-1] = -1;
+                num_used_keys -= 1;
                 break;
             }
         }
-        AUDIT
-            printk(KERN_DEBUG "%s: used_keys updated, old_key: %d", TAG_CTL, the_key);
     }
 
     //freeing data structures allocated in tag get

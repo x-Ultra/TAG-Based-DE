@@ -53,3 +53,4 @@ struct tag_service *tag_table[TBL_ENTRIES_NUM] __attribute__((aligned(8)));
 //spinlock used by soft irq (cleaner) and kernel thread. Used spin_lock_hb() form kernel thread !
 DEFINE_SPINLOCK(tag_tbl_spin);
 int used_keys[TBL_ENTRIES_NUM];
+int num_used_keys = 0;

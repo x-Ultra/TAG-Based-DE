@@ -189,6 +189,7 @@ int create_tag_service(int key, int permission)
     //inserting the new entry in used_keys & tag_table
     if(key != TAG_IPC_PRIVATE){
         used_keys[free_key_entry] = key;
+        num_used_keys += 1;
     }
 
     tag_table[descriptor] = new_service;
