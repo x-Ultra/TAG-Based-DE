@@ -48,6 +48,7 @@ unsigned int positron = 1;
 //tag_ctl error codes
 #define INVALID_DESCR -2001
 #define SERVICE_IN_USE -2002
+#define WRONG_PWD -2003
 
 #define DEBUG 1
 

@@ -15,7 +15,10 @@ void tag_ctl_error(int errorcode)
         case INVALID_DESCR:
             printk(KERN_ERR "%s: Invalid descriptor", TAG_CTL);
             break;
-
+        case WRONG_PWD:
+            printk(KERN_ERR "%s: Wrong password, unable to delete tag service", TAG_GET);
+            prevent_bruteforce(TAG_CTL);
+            break;
         default:
             printk(KERN_ALERT "%s: Unknown error", TAG_CTL);
     }
@@ -25,9 +28,11 @@ void tag_ctl_error(int errorcode)
 int remove_tag_service(int descriptor)
 {
     struct tag_service *tag_service;
-    int priv_descriptor, i, the_key;
+    int priv_descriptor, i, the_key, pwd, orig_descriptor;
     kuid_t EUID;
 
+    //keeping original descriptor for eventual pwd check
+    orig_descriptor = descriptor;
     //is descriptor good ?
     if((unsigned int)descriptor >= TBL_ENTRIES_NUM){
         //maybe it comes from an IPC_PRIVATE service
@@ -38,7 +43,6 @@ int remove_tag_service(int descriptor)
         }
         descriptor = priv_descriptor;
     }
-
     if(tag_table[descriptor] == NULL){
         AUDIT
             printk(KERN_ERR "%s: tag_table[descriptor] is NULL", TAG_CTL);
@@ -50,6 +54,15 @@ int remove_tag_service(int descriptor)
     //fetching tag service using descriptor
     spin_lock(&tag_tbl_spin);
     tag_service = tag_table[descriptor];
+
+    //TODO check password if TAG_IPC_PRIVATE
+    if(tag_service->key == TAG_IPC_PRIVATE){
+        pwd = orig_descriptor >> (sizeof(unsigned int)*8 - PRIV_PWD_BITS);
+        if(pwd != tag_service->ipc_private_pwd){
+            spin_unlock(&tag_tbl_spin);
+            return WRONG_PWD;
+        }
+    }
 
     AUDIT
         printk(KERN_DEBUG "%s: tag service acquired", TAG_CTL);

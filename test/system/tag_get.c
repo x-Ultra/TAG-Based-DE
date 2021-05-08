@@ -35,6 +35,8 @@ int main(int argc, char **argv)
 	printf("removing random, negative descriptor %d\n", ret);
 	ret = tag_ctl(34, REMOVE);
 	printf("removing random, positive descriptor %d\n", ret);
+	ret = tag_ctl(2, REMOVE);
+	printf("removing private descriptor, with wrong pwd %d\n", ret);
 
 	ret = tag_ctl(desc1, REMOVE);
 	printf("removing desc1 %d\n", ret);
