@@ -1,5 +1,6 @@
 #SyscallAdderV2
 SyscallAdderV2/
+include/deleteme.c
 
 # Prerequisites
 *.d

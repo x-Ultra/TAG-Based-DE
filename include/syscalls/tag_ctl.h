@@ -1,79 +1,32 @@
 
-//function that audit tag_get error repending on (negative) return code
-void tag_ctl_error(int errorcode)
-{
-    switch(errorcode){
-        case INVALID_CMD:
-            printk(KERN_ERR "%s: Command value incorrect, choose REMOVE or AWAKE_ALL", TAG_CTL);
-            break;
-        case INVALID_EUID:
-            printk(KERN_ERR "%s: Invalid EUID", TAG_CTL);
-            break;
-        case SERVICE_IN_USE:
-            printk(KERN_ERR "%s: There are still some threads waiting for data on this service", TAG_CTL);
-            break;
-        case INVALID_DESCR:
-            printk(KERN_ERR "%s: Invalid descriptor", TAG_CTL);
-            break;
-        case WRONG_PWD:
-            printk(KERN_ERR "%s: Wrong password, unable to delete tag service", TAG_GET);
-            prevent_bruteforce(TAG_CTL);
-            break;
-        default:
-            printk(KERN_ALERT "%s: Unknown error", TAG_CTL);
-    }
-}
-
-
+//if CMD = REMOVE this function will be triggered
 int remove_tag_service(int descriptor)
 {
     struct tag_service *tag_service;
-    int priv_descriptor, i, the_key, pwd, orig_descriptor;
-    kuid_t EUID;
-
-    //keeping original descriptor for eventual pwd check
+    int ret, i, the_key, orig_descriptor;
     orig_descriptor = descriptor;
-    //is descriptor good ?
-    if((unsigned int)descriptor >= TBL_ENTRIES_NUM){
-        //maybe it comes from an IPC_PRIVATE service
-        priv_descriptor = (descriptor << PRIV_PWD_BITS) >> PRIV_PWD_BITS;
-        //let's do the check again
-        if(priv_descriptor >= TBL_ENTRIES_NUM || priv_descriptor < 0){
-            return INVALID_DESCR;
-        }
-        descriptor = priv_descriptor;
+
+    spin_lock(&tag_tbl_spin);
+    //cheking descriptor validity
+    if((descriptor = check_descriptor(descriptor, TAG_CTL)) < 0){
+        spin_unlock(&tag_tbl_spin);
+        return descriptor;
     }
-    if(tag_table[descriptor] == NULL){
-        AUDIT
-            printk(KERN_ERR "%s: tag_table[descriptor] is NULL", TAG_CTL);
-        return INVALID_DESCR;
-    }
+    //fetching tag service using descriptor
+    tag_service = tag_table[descriptor];
     AUDIT
         printk(KERN_DEBUG "%s: descriptor checked, removing %d", TAG_CTL, descriptor);
 
-    //fetching tag service using descriptor
-    spin_lock(&tag_tbl_spin);
-    tag_service = tag_table[descriptor];
-
-    //TODO check password if TAG_IPC_PRIVATE
-    if(tag_service->key == TAG_IPC_PRIVATE){
-        pwd = orig_descriptor >> (sizeof(unsigned int)*8 - PRIV_PWD_BITS);
-        if(pwd != tag_service->ipc_private_pwd){
-            spin_unlock(&tag_tbl_spin);
-            return WRONG_PWD;
-        }
+    //checking password if TAG_IPC_PRIVATE
+    if((ret = check_password(tag_service, orig_descriptor)) != 0){
+        spin_unlock(&tag_tbl_spin);
+        return ret;
     }
 
-    AUDIT
-        printk(KERN_DEBUG "%s: tag service acquired", TAG_CTL);
-
     //checking permission
-    if(tag_service->permission == PERMISSION_USER){
-        EUID = current_euid();
-        if(!uid_eq(EUID, tag_service->creator_euid)){
-            spin_unlock(&tag_tbl_spin);
-            return INVALID_EUID;
-        }
+    if((ret = check_permission(tag_service)) != 0){
+        spin_unlock(&tag_tbl_spin);
+        return ret;
     }
 
     AUDIT
@@ -82,11 +35,10 @@ int remove_tag_service(int descriptor)
     //freeing the tag table entry and all data allocated in it
     //only if there is no thread waiting for messages
     //          Note:
-    //The last receiving thread on a tag service has to set
-    //tag_service->tag_levels->level_num = NO_TAG_LEVELS
-    //(and free al allocated struuctures)
+    //The last receiving thread on a tag service has to free the tag level
+    //(and free all other allocated structures)
     //in order to communicate that there are no more threads waiting
-    if(tag_service->tag_levels->level_num != NO_TAG_LEVELS){
+    if(tag_service->tag_levels != NULL){
         spin_unlock(&tag_tbl_spin);
         return SERVICE_IN_USE;
     }
@@ -144,11 +96,11 @@ asmlinkage int sys_tag_ctl(int tag, int command)
             return 0;
         case REMOVE:
             if((retval = remove_tag_service(tag)) < 0){
-                tag_ctl_error(retval);
+                tag_error(retval, TAG_CTL);
             }
             break;
         default:
-            tag_ctl_error(INVALID_CMD);
+            tag_error(INVALID_CMD, TAG_CTL);
             retval = INVALID_CMD;
             break;
     }

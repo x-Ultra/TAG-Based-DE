@@ -6,17 +6,18 @@
 //levels ?
 
 
-struct thread_tagdata{
+struct thread_rcvdata{
 
-    //TODO
-    int changemelater;
+    pid_t pid;
+    char* buffer;
+    size_t size;
 };
 
 
 struct receiving_threads{
 
     struct receiving_threads *next;
-    struct thread_tagdata data;
+    struct thread_rcvdata data;
 };
 
 
@@ -29,10 +30,10 @@ struct tag_level{
 
 struct tag_levels_list{
 
-    struct tag_level_list *next;
-    struct tag_level_list *prev;
+    struct tag_levels_list *next;
+    struct tag_levels_list *prev;
     struct tag_level level;
-    //for a faster lookup
+    //for a faster lookup, if needed extract fron tam_level with 'containerof'
     int level_num;
 };
 

@@ -1,51 +1,6 @@
 //random lib used only in this module
 #include <linux/random.h>
 
-//function that audit tag_get error repending on (negative) return code
-void tag_get_error(int errorcode)
-{
-
-    switch(errorcode){
-        case KEY_USED:
-            printk(KERN_ERR "%s: Key was already used", TAG_GET);
-            break;
-        case PRIVATE_OPEN:
-            printk(KERN_ERR "%s: Tag Open on private key not permitted", TAG_GET);
-            break;
-        case INVALID_CMD:
-            printk(KERN_ERR "%s: Command value incorrect", TAG_GET);
-            break;
-        case KEY_NOT_FOUND:
-            printk(KERN_ERR "%s: Key was not found", TAG_GET);
-            prevent_bruteforce(TAG_GET);
-            break;
-        case INVALID_EUID:
-            printk(KERN_ERR "%s: Invalid EUID", TAG_GET);
-            break;
-        case MOD_INUSE:
-            printk(KERN_ERR "%s: Module in use", TAG_GET);
-            break;
-        case KEY_RESERVED:
-            printk(KERN_ERR "%s: Key -1 is reserved", TAG_GET);
-            break;
-        case ERR_KMALLOC:
-            printk(KERN_ERR "%s: Unable to kmalloc", TAG_GET);
-            break;
-        case SERVICE_SETUP_FAIED:
-            printk(KERN_ERR "%s: Unable to setup new tag service", TAG_GET);
-            break;
-        case TAG_TBL_FULL:
-            printk(KERN_ERR "%s: Tag Table is full, try again later", TAG_GET);
-            break;
-        case UNEXPECTED:
-            printk(KERN_ALERT "%s: Unexpected error, check previous message", TAG_GET);
-            break;
-        default:
-            printk(KERN_ALERT "%s: Unknown error", TAG_GET);
-    }
-}
-
-
 //Remove after testing
 void retreive_descriptor_pwd(unsigned int merged)
 {
@@ -77,26 +32,18 @@ int merge_rnd_descriptor(int rnd, int descriptor)
 }
 
 
-int set_up_tag_level(struct tag_service *new_service, int key, int permission)
+int set_up_tag_service(struct tag_service *new_service, int key, int permission)
 {
     unsigned int rnd = 0;
-    struct tag_levels_list *tag_levels;
 
     AUDIT
         printk(KERN_DEBUG "%s: Setting up tag level", TAG_GET);
 
-    if((tag_levels = (struct tag_levels_list *)kmalloc(sizeof(struct tag_level), GFP_KERNEL)) == NULL){
-		printk(KERN_ERR "%s: Unable to alloc tag_level", TAG_GET);
-		return ERR_KMALLOC;
-	}
-    tag_levels->level_num = NO_TAG_LEVELS;
-    tag_levels->prev = NULL;
-    tag_levels->next = NULL;
     new_service->creator_pid = current->pid;
     new_service->creator_euid = current_euid();
     new_service->key = key;
     new_service->permission = permission;
-    new_service->tag_levels = tag_levels;
+    new_service->tag_levels = NULL;
 
     AUDIT
         printk(KERN_DEBUG "%s: new_service setup ok", TAG_GET);
@@ -184,7 +131,7 @@ int create_tag_service(int key, int permission)
 		return ERR_KMALLOC;
 	}
 
-    if((rnd = set_up_tag_level(new_service, key, permission)) < 0){
+    if((rnd = set_up_tag_service(new_service, key, permission)) < 0){
         spin_unlock(&tag_tbl_spin);
         return SERVICE_SETUP_FAIED;
     }
@@ -270,7 +217,7 @@ asmlinkage int sys_tag_get(int key, int command, int permission)
 
     //key reserved
     if(key == -1){
-        tag_get_error(KEY_RESERVED);
+        tag_error(KEY_RESERVED, TAG_GET);
         //module_put(THIS_MODULE);
         return KEY_RESERVED;
     }
@@ -279,16 +226,16 @@ asmlinkage int sys_tag_get(int key, int command, int permission)
     switch(command){
         case CMD_OPEN:
             if((tag_descriptor = fetch_tag_desc(key, permission)) < 0){
-                tag_get_error(tag_descriptor);
+                tag_error(tag_descriptor, TAG_GET);
             }
             break;
         case CMD_CREATE:
             if((tag_descriptor = create_tag_service(key, permission)) < 0){
-                tag_get_error(tag_descriptor);
+                tag_error(tag_descriptor, TAG_GET);
             }
             break;
         default:
-            tag_get_error(INVALID_CMD);
+            tag_error(INVALID_CMD, TAG_GET);
             tag_descriptor = INVALID_CMD;
             break;
     }
