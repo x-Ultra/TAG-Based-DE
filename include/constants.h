@@ -37,6 +37,7 @@ unsigned int positron = 1;
 #define INVALID_CMD -1
 #define INVALID_EUID -2
 #define KEY_NOT_FOUND -3
+#define BEING_DELETED -4
 
 //tag_get error codes
 #define KEY_USED -1001
@@ -51,7 +52,8 @@ unsigned int positron = 1;
 #define WRONG_PWD -2003
 
 //tag_receive error codes
-#define BEING_DELETED -4001
+#define PUT_META_ERR -4001
+#define PID_NF -4002
 
 #define DEBUG 1
 

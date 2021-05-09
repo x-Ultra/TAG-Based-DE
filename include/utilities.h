@@ -15,6 +15,12 @@ void tag_error(int errorcode, char* modname)
             printk(KERN_ERR "%s: Wrong password, unable to delete tag service", TAG_CTL);
             prevent_bruteforce(TAG_CTL);
             break;
+        case PUT_META_ERR:
+            printk(KERN_ERR "%s: Error in put_receive_metadata", TAG_RECEIVE);
+            break;
+        case PID_NF:
+            printk(KERN_ALERT "%s: Pid not found during cleanup procedure", TAG_RECEIVE);
+            break;
         case KEY_USED:
             printk(KERN_ERR "%s: Key was already used", TAG_GET);
             break;
@@ -26,7 +32,7 @@ void tag_error(int errorcode, char* modname)
             prevent_bruteforce(modname);
             break;
         case BEING_DELETED:
-            printk(KERN_ERR "%s: The tag service is being deleted", TAG_RECEIVE);
+            printk(KERN_ERR "%s: The tag service is being deleted", modname);
             break;
         case INVALID_EUID:
             printk(KERN_ERR "%s: Invalid EUID", modname);

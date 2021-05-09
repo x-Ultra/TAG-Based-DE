@@ -20,24 +20,35 @@ int remove_tag_service(int descriptor)
 
     //if semaphore has been acquired, some thread is waiting
     //NB: we are unpreemtable (spinlock), so this thread will
-    //never go to sleep because of down_->try<-lock
-    if(!down_trylock(&tag_service->sem)){
+    //never go to sleep because of down_->try<-lock.
+    //This is more like a 'reverse semaphore'...
+    if(down_trylock(&semaphores[descriptor])){
+        //if i am able to acquire 2 time the semaphore,
+        //some thread has the tag service.
+        if(down_trylock(&semaphores[descriptor])){
+            up(&semaphores[descriptor]);
+            spin_unlock(&tag_tbl_spin);
+            return SERVICE_IN_USE;
+        }
+    }else{
+        //if i am not able to acquire the semaphore for the first time,
+        //another removing ops for this service has been called
         spin_unlock(&tag_tbl_spin);
-        return SERVICE_IN_USE;
+        return BEING_DELETED;
     }
     AUDIT
         printk(KERN_DEBUG "%s: waiting threads checked", TAG_CTL);
 
     //checking password if TAG_IPC_PRIVATE
     if((ret = check_password(tag_service, orig_descriptor)) != 0){
-        up(&tag_service->sem);
+        up(&semaphores[descriptor]);
         spin_unlock(&tag_tbl_spin);
         return ret;
     }
 
     //checking permission
     if((ret = check_permission(tag_service)) != 0){
-        up(&tag_service->sem);
+        up(&semaphores[descriptor]);
         spin_unlock(&tag_tbl_spin);
         return ret;
     }
@@ -70,7 +81,6 @@ int remove_tag_service(int descriptor)
         printk(KERN_DEBUG "%s: tag table updated", TAG_CTL);
 
     //done
-    up(&tag_service->sem);
     spin_unlock(&tag_tbl_spin);
     return 0;
 }

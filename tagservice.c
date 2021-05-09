@@ -51,6 +51,7 @@ static int __init install(void)
 	for(i = 0; i < TBL_ENTRIES_NUM; i++){
 		tag_table[i] = NULL;
 		used_keys[i] = -1;
+		sema_init(&semaphores[i], 1);
 	}
 
 	//setting PRIV_TAG_BITS variable value
