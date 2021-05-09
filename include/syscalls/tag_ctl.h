@@ -6,6 +6,7 @@ int remove_tag_service(int descriptor)
     int ret, i, the_key, orig_descriptor;
     orig_descriptor = descriptor;
 
+    //preempt_disable()/enable() wounld be reduntant
     spin_lock(&tag_tbl_spin);
     //cheking descriptor validity
     if((descriptor = check_descriptor(descriptor, TAG_CTL)) < 0){
@@ -17,34 +18,32 @@ int remove_tag_service(int descriptor)
     AUDIT
         printk(KERN_DEBUG "%s: descriptor checked, removing %d", TAG_CTL, descriptor);
 
+    //if semaphore has been acquired, some thread is waiting
+    //NB: we are unpreemtable (spinlock), so this thread will
+    //never go to sleep because of down_->try<-lock
+    if(!down_trylock(&tag_service->sem)){
+        spin_unlock(&tag_tbl_spin);
+        return SERVICE_IN_USE;
+    }
+    AUDIT
+        printk(KERN_DEBUG "%s: waiting threads checked", TAG_CTL);
+
     //checking password if TAG_IPC_PRIVATE
     if((ret = check_password(tag_service, orig_descriptor)) != 0){
+        up(&tag_service->sem);
         spin_unlock(&tag_tbl_spin);
         return ret;
     }
 
     //checking permission
     if((ret = check_permission(tag_service)) != 0){
+        up(&tag_service->sem);
         spin_unlock(&tag_tbl_spin);
         return ret;
     }
 
     AUDIT
         printk(KERN_DEBUG "%s: Permission ok", TAG_CTL);
-
-    //freeing the tag table entry and all data allocated in it
-    //only if there is no thread waiting for messages
-    //          Note:
-    //The last receiving thread on a tag service has to free the tag level
-    //(and free all other allocated structures)
-    //in order to communicate that there are no more threads waiting
-    if(tag_service->tag_levels != NULL){
-        spin_unlock(&tag_tbl_spin);
-        return SERVICE_IN_USE;
-    }
-
-    AUDIT
-        printk(KERN_DEBUG "%s: waiting threads checked", TAG_CTL);
 
     //removing the descriptor on the used_keys in such a way to
     //have '-1' entries ONLY at the end of the table
@@ -71,6 +70,7 @@ int remove_tag_service(int descriptor)
         printk(KERN_DEBUG "%s: tag table updated", TAG_CTL);
 
     //done
+    up(&tag_service->sem);
     spin_unlock(&tag_tbl_spin);
     return 0;
 }

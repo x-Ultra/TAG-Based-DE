@@ -20,6 +20,8 @@
 #include <linux/syscalls.h>
 //rcu_read_lock
 #include <linux/rcupdate.h>
+//semaphore used in tag_service entries
+#include <linux/semaphore.h>
 
 #include "include/architecture.h"
 #include "include/security.h"

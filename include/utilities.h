@@ -25,6 +25,9 @@ void tag_error(int errorcode, char* modname)
             printk(KERN_ERR "%s: Key was not found", modname);
             prevent_bruteforce(modname);
             break;
+        case BEING_DELETED:
+            printk(KERN_ERR "%s: The tag service is being deleted", TAG_RECEIVE);
+            break;
         case INVALID_EUID:
             printk(KERN_ERR "%s: Invalid EUID", modname);
             break;

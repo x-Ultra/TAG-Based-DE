@@ -13,7 +13,7 @@ int put_receive_metadata(struct tag_service *tag_service, int level, char* buffe
         AUDIT
             printk(KERN_DEBUG "%s: Setting up tag level", TAG_RECEIVE);
 
-        if((tag_levels = (struct tag_levels_list *)kmalloc(sizeof(struct tag_level), GFP_KERNEL)) == NULL){
+        if((tag_levels = (struct tag_levels_list *)kmalloc(sizeof(struct tag_levels_list), GFP_KERNEL)) == NULL){
     		printk(KERN_ERR "%s: Unable to alloc tag_level", TAG_RECEIVE);
     		return ERR_KMALLOC;
     	}
@@ -21,6 +21,7 @@ int put_receive_metadata(struct tag_service *tag_service, int level, char* buffe
         tag_levels->prev = NULL;
         tag_levels->next = NULL;
         tag_levels->level.waiting_threads = 0;
+        spin_lock_init(&tag_levels->level.lock);
         tag_service->tag_levels = tag_levels;
     }
 
@@ -45,6 +46,7 @@ int put_receive_metadata(struct tag_service *tag_service, int level, char* buffe
                 rcvng_level->level_num = level;
                 rcvng_level->prev = NULL;
                 rcvng_level->next = NULL;
+                spin_lock_init(&rcvng_level->level.lock);
                 rcvng_level->level.waiting_threads = 0;
                 break;
             }
@@ -52,25 +54,20 @@ int put_receive_metadata(struct tag_service *tag_service, int level, char* buffe
     }
 
     //setting metadata into rcvng_level, could be empty or not
-    //using RCU insted of spinlock/mutex to be faster, hopefully....
-    //TODO test rcu vs spinlock
-    if((rcv_thread = (struct receiving_threads *)kmalloc(sizeof(struct receiving_threads), GFP_KERNEL)) == NULL){
-        printk(KERN_ERR "%s: Unable to alloc receiving_threads", TAG_RECEIVE);
-        return ERR_KMALLOC;
-    }
-
-    rcu_read_lock();
-
+    spin_lock(&rcvng_level->level.lock);
     if(rcvng_level->level.waiting_threads == 0){
         rcvng_level->level.threads.data.pid = current->pid;
         rcvng_level->level.threads.data.buffer = buffer;
         rcvng_level->level.threads.data.size = size;
         rcvng_level->level.threads.next = NULL;
-        //not needed
-        kfree(rcv_thread);
     }else{
+        //if there are some other threads waiting on this level...
         for(current_tr = &(rcvng_level->level.threads); ; current_tr = current_tr->next){
             if(current_tr->next == NULL){
+                if((rcv_thread = (struct receiving_threads *)kmalloc(sizeof(struct receiving_threads), GFP_KERNEL)) == NULL){
+                    printk(KERN_ERR "%s: Unable to alloc receiving_threads", TAG_RECEIVE);
+                    return ERR_KMALLOC;
+                }
                 rcv_thread->data.pid = current->pid;
                 rcv_thread->data.buffer = buffer;
                 rcv_thread->data.size = size;
@@ -81,16 +78,17 @@ int put_receive_metadata(struct tag_service *tag_service, int level, char* buffe
             }
         }
     }
-
     rcvng_level->level.waiting_threads += 1;
 
-    rcu_read_unlock();
+    spin_unlock(&rcvng_level->level.lock);
+
     return 0;
 }
 
 
-void clean_up_metadata()
+void clean_up_metadata(void)
 {
+
     return;
 }
 
@@ -98,11 +96,13 @@ void clean_up_metadata()
 //function that uses a sleep wait condition queue
 void receive(void)
 {
-    //if awake, clean data put preavusly
-    //AND if this thread was the last listening for data on this levels
-    //do the appropiate cleanup operations
-    return;
+    //wait event interruptible with different cmds
 
+
+    //TODO: Insert magic here
+
+
+    return;
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
@@ -121,6 +121,7 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
 	}
     */
 
+    //preempt_disable()/disable() would be redundand
     spin_lock(&tag_tbl_spin);
     //checking descriptor validity
     if((descriptor = check_descriptor(tag, TAG_CTL)) < 0){
@@ -128,8 +129,14 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
         return descriptor;
     }
     tag_service = tag_table[descriptor];
-    //TODO postponing cleaner timer to corresponding descriptor
     spin_unlock(&tag_tbl_spin);
+
+    //locking on the semaphore of the tag_service
+    if(!down_trylock(&tag_service->sem)){
+        return BEING_DELETED;
+    }
+
+    //TODO postponing cleaner timer to corresponding descriptor
 
     //from here in, the cleaner wont wake up for CLEANER_SLEEP seconds
     //on this tag table entry
@@ -142,7 +149,6 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
     if((ret = check_permission(tag_service)) != 0){
         return ret;
     }
-    spin_unlock(&tag_tbl_spin);
 
     //putting metadata into the right place
     if((ret = put_receive_metadata(tag_service, level, buffer, size)) < 0){
@@ -152,6 +158,12 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
 
     //going to sleep (until given coindition is met)
     receive();
+
+    //if awake, clean data put preavusly
+    //AND if this thread was the last listening for data on this levels
+    //do the appropiate cleanup operations
+    clean_up_metadata();
+    up(&tag_service->sem);
 
     //module_put(THIS_MODULE);
     return 0;

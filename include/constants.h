@@ -50,6 +50,9 @@ unsigned int positron = 1;
 #define SERVICE_IN_USE -2002
 #define WRONG_PWD -2003
 
+//tag_receive error codes
+#define BEING_DELETED -4001
+
 #define DEBUG 1
 
 #ifdef DEBUG

@@ -44,6 +44,7 @@ int set_up_tag_service(struct tag_service *new_service, int key, int permission)
     new_service->key = key;
     new_service->permission = permission;
     new_service->tag_levels = NULL;
+    sema_init(&new_service->sem, 1);
 
     AUDIT
         printk(KERN_DEBUG "%s: new_service setup ok", TAG_GET);
@@ -106,7 +107,7 @@ int create_tag_service(int key, int permission)
     //The tag_table counld be accessed by a softirq (the 'cleaner')
     //so spin lock bottom halves should be used.
 
-    //spinn_lock_bh(&tag_tbl_spin); <---- FIX, no working
+    //preempt_enable()/disable would be redundant
     spin_lock(&tag_tbl_spin);
     AUDIT
         printk(KERN_DEBUG "%s: Spinlock bh called", TAG_GET);
@@ -170,7 +171,8 @@ int fetch_tag_desc(int key, int permission)
         return PRIVATE_OPEN;
 
     //scaninng tag table
-    spin_lock_bh(&tag_tbl_spin);
+    //preempt_enable()/disable would be redundant
+    spin_lock(&tag_tbl_spin);
     for(descriptor = 0; descriptor < TBL_ENTRIES_NUM; descriptor++){
 
         current_entry = tag_table[descriptor];
