@@ -44,6 +44,7 @@ int set_up_tag_service(struct tag_service *new_service, int key, int permission)
     new_service->key = key;
     new_service->permission = permission;
     new_service->tag_levels = NULL;
+    spin_lock_init(&new_service->lvl_spin);
 
     AUDIT
         printk(KERN_DEBUG "%s: new_service setup ok", TAG_GET);

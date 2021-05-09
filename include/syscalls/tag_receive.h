@@ -10,6 +10,7 @@ struct tag_levels_list* put_receive_metadata(struct tag_service *tag_service, in
         printk(KERN_DEBUG "%s: putting thread metadata", TAG_RECEIVE);
 
     //handling the case the thread is the first to wait on this service
+    spin_lock(&tag_service->lvl_spin);
     tag_levels = tag_service->tag_levels;
     if(tag_levels == NULL){
         AUDIT
@@ -17,6 +18,7 @@ struct tag_levels_list* put_receive_metadata(struct tag_service *tag_service, in
 
         if((tag_levels = (struct tag_levels_list *)kmalloc(sizeof(struct tag_levels_list), GFP_KERNEL)) == NULL){
     		printk(KERN_ERR "%s: Unable to alloc tag_level", TAG_RECEIVE);
+            spin_unlock(&tag_service->lvl_spin);
     		return NULL;
     	}
         tag_levels->level_num = NO_TAG_LEVELS;
@@ -57,6 +59,7 @@ struct tag_levels_list* put_receive_metadata(struct tag_service *tag_service, in
             }
         }
     }
+    spin_unlock(&tag_service->lvl_spin);
 
     //FINDING THREADS METADATA POSITION
     //setting metadata into rcvng_level, could be empty or not
@@ -131,6 +134,7 @@ int remove_thread_metadata(struct tag_levels_list *rcvng_level)
         prev_tr = current_tr;
     }
     //decreasing semaphore count -> the thread has finished working with this tag service
+    rcvng_level->level.waiting_threads -= 1;
     spin_unlock(&rcvng_level->level.lock);
     return PID_NF;
 }
@@ -148,17 +152,16 @@ int clean_up_metadata(struct tag_service *tag_service, struct tag_levels_list *r
         ret = remove_thread_metadata(rcvng_level);
         return ret;
     }
-
-    //otherwise, we are emulating the behaviour of the remover...
-    //we have to acquire the semaphore
-    //TODO CONTINUE HERE LATER ! ! ! ! !
+    //otherwise, locking the "situation" on the thread level
+    spin_lock(&tag_service->lvl_spin);
 
     //if the thread was the last standing (on the tag service) he has to
     //delete the entire tag_levels_list
     if(tag_service->tag_levels->next == NULL){
-        //TODO
-        //tag_service->tag_levels->levels.threads->next should be NULL (only one remainign)
-
+        kfree(rcvng_level->level.threads);
+        kfree(tag_service->tag_levels);
+        tag_service->tag_levels = NULL;
+        return 0;
     }
 
     //If the thread was the last on its level (but not on the tag service) he has to
@@ -167,11 +170,10 @@ int clean_up_metadata(struct tag_service *tag_service, struct tag_levels_list *r
     if(rcvng_level->prev == NULL){
         tag_service->tag_levels = rcvng_level->next;
     }else{
-
+        rcvng_level->prev = rcvng_level->next;
     }
-
     kfree(rcvng_level);
-
+    spin_unlock(&tag_service->lvl_spin);
 
     return 0;
 }
@@ -181,7 +183,8 @@ int clean_up_metadata(struct tag_service *tag_service, struct tag_levels_list *r
 void receive(void)
 {
     //wait event interruptible with different cmds
-
+    int pippo = 0;
+    wait_event_interruptible(receiving_queue, pippo);
 
     //TODO: Insert magic here
 
@@ -254,12 +257,12 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
         tag_error(PUT_META_ERR, TAG_RECEIVE);
         return PUT_META_ERR;
     }
+    AUDIT
+        printk(KERN_DEBUG "%s: Metadata inserted", TAG_RECEIVE);
 
     //going to sleep (until given coindition is met)
-    receive();
-    printk(KERN_ALERT "%s: This message has to apper, or fuck", TAG_RECEIVE);
+    //receive();
 
-    /*
     //if awake, clean data put preavusly
     //AND if this thread was the last listening for data on this levels
     //do the appropiate cleanup operations
@@ -267,7 +270,8 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
         tag_error(ret, TAG_RECEIVE);
         return ret;
     }
-    */
+    AUDIT
+        printk(KERN_DEBUG "%s: Metadata cleaned-up", TAG_RECEIVE);
     //decreasing semaphore count
     down(&semaphores[descriptor]);
 

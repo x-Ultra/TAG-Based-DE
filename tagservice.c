@@ -22,6 +22,8 @@
 #include <linux/rcupdate.h>
 //semaphore used in tag_service entries
 #include <linux/semaphore.h>
+//wait event queue
+#include <linux/wait.h>
 
 #include "include/architecture.h"
 #include "include/security.h"

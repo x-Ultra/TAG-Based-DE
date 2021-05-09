@@ -18,7 +18,6 @@ struct receiving_threads{
 
     struct receiving_threads *next;
     struct thread_rcvdata data;
-
 };
 
 
@@ -47,9 +46,11 @@ struct tag_service{
     kuid_t creator_euid;
     int permission;
     unsigned int ipc_private_pwd;
+    spinlock_t lvl_spin;
     struct tag_levels_list *tag_levels;
 };
 
+DECLARE_WAIT_QUEUE_HEAD(receiving_queue);
 
 //TODO check allignment and false cache sharing
 struct tag_service *tag_table[TBL_ENTRIES_NUM] __attribute__((aligned(8)));
