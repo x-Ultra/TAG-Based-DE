@@ -35,6 +35,7 @@
 #include "include/syscalls/tag_get.h"
 #include "include/syscalls/tag_ctl.h"
 #include "include/syscalls/tag_receive.h"
+#include "include/syscalls/tag_send.h"
 
 #define MODNAME "TAG Service"
 

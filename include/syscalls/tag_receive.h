@@ -210,25 +210,26 @@ int receive(struct tag_levels_list *rcvng_level)
     //2. he's wake up by tag_ctl
     //3. some data arrive
     int old_data, old_awake;
-    stuct tag_service *tag_service;
+    struct tag_service *tag_serv;
 
-    old_data = data_received->data_received;
-    tag_service = container_of();
-    old_awake = tag_service->awake_all;
+    old_data = rcvng_level->level.data_received;
+    tag_serv = container_of(&rcvng_level, struct tag_service, tag_levels);
+    old_awake = tag_serv->awake_all;
 
     #ifdef WAIT_EV_TO
     //Used before tag_send was implemented
-    wait_event_interruptible_timeout(receiving_queue, (old_data != rcvng_level->data_received) || (old_awake != tag_service->awake_all), msecs_to_jiffies(SEC_EV_TO*1000));
+    wait_event_interruptible_timeout(receiving_queue, (old_data != rcvng_level->level.data_received) || (old_awake != tag_serv->awake_all), msecs_to_jiffies(SEC_EV_TO*1000));
     #else
-    wait_event_interruptible(receiving_queue, 0);
+    wait_event_interruptible(receiving_queue, (old_data != rcvng_level->level.data_received) || (old_awake != tag_serv->awake_all));
     #endif
 
     //distinguish return codes
-    if(old_data != rcvng_level->data_received){
+    if(old_data != rcvng_level->level.data_received){
         return 0;
-    }else if(old_awake != tag_service->awake_all){
-        return TRHEAD_WOKE_UP;
+    }else if(old_awake != tag_serv->awake_all){
+        return THREAD_WOKE_UP;
     }else{
+        //or timer if WAIT_EV_TO is defined
         return SIGNAL_ARRIVED;
     }
 }

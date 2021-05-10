@@ -44,7 +44,7 @@ int main(int argc, char **argv)
 
     if(!fork()){
         malicious_process();
-        return;
+        return 0;
     }
 
     wait(NULL);
