@@ -21,6 +21,12 @@ void tag_error(int errorcode, char* modname)
         case PID_NF:
             printk(KERN_ALERT "%s: Pid not found during cleanup procedure", TAG_RECEIVE);
             break;
+        case THREAD_WOKE_UP:
+            printk(KERN_ALERT "%s: Receive interrupted by wake up operation", TAG_RECEIVE);
+            break;
+        case SIGNAL_ARRIVED:
+            printk(KERN_ALERT "%s: Receive interrupted signal", TAG_RECEIVE);
+            break;
         case KEY_USED:
             printk(KERN_ERR "%s: Key was already used", TAG_GET);
             break;

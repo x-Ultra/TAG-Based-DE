@@ -92,14 +92,11 @@ static int __init install(void)
 		return -1;
 	}
 
-	//Not implemented yet
-	/*
 	printk(KERN_DEBUG "%s: Adding %s", MODNAME, "tag_send");
 	if((tag_send_indx = syscall_adder((void *)sys_tag_send, "tag_send", 8, 4)) == -1){
 		printk(KERN_ERR "%s: Unable to add tag_send", MODNAME);
 		return -1;
 	}
-	*/
 
 	printk(KERN_DEBUG "%s: Adding %s", MODNAME, "tag_receive");
 	if((tag_receive_indx = syscall_adder((void *)sys_tag_receive, "tag_receive", 11, 4)) == -1){
@@ -128,13 +125,10 @@ static void __exit uninstall(void)
 		ret = -1;
 	}
 
-	//Not implemented yet
-	/*
 	if(syscall_remover(tag_send_indx) == -1){
 		printk(KERN_DEBUG "%s: Unable to remove tag_send", MODNAME);
 		ret = -1;
 	}
-	*/
 
 	if(syscall_remover(tag_receive_indx) == -1){
 		printk(KERN_DEBUG "%s: Unable to remove tag_receive", MODNAME);

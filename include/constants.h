@@ -54,6 +54,8 @@ unsigned int positron = 1;
 //tag_receive error codes
 #define PUT_META_ERR -4001
 #define PID_NF -4002
+#define THREAD_WOKE_UP -4003
+#define SIGNAL_ARRIVED -4004
 
 //seconds to wait if bruteforce detected
 #define BRUTE_SLEEP 3

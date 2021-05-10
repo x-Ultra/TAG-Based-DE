@@ -26,6 +26,7 @@ struct tag_levels_list* put_receive_metadata(struct tag_service *tag_service, in
         tag_levels->next = NULL;
         tag_levels->level.waiting_threads = 0;
         tag_levels->level.threads = NULL;
+        tag_levels->level.data_received = 0;
         spin_lock_init(&tag_levels->level.lock);
         tag_service->tag_levels = tag_levels;
     }
@@ -54,6 +55,7 @@ struct tag_levels_list* put_receive_metadata(struct tag_service *tag_service, in
                 rcvng_level->level_num = level;
                 spin_lock_init(&rcvng_level->level.lock);
                 rcvng_level->level.waiting_threads = 0;
+                rcvng_level->level.data_received = 0;
                 rcvng_level->level.threads = NULL;
                 break;
             }
@@ -77,7 +79,7 @@ struct tag_levels_list* put_receive_metadata(struct tag_service *tag_service, in
         rcvng_level->level.threads = rcv_thread;
     }else{
         //if there are some other threads waiting on this level,
-        //we have to insert the netry in the last postition
+        //we have to insert the entry in the last postition
         for(current_tr = rcvng_level->level.threads; ; current_tr = current_tr->next){
             if(current_tr->next == NULL){
                 current_tr->next = rcv_thread;
@@ -201,20 +203,34 @@ int clean_up_metadata(struct tag_service *tag_service, struct tag_levels_list *r
 
 
 //function that uses a sleep wait condition queue
-void receive(void)
+int receive(struct tag_levels_list *rcvng_level)
 {
-    //wait event interruptible with different cmds
+    //form now on, the thread will wake up wheter
+    //1. he's hit by a signal
+    //2. he's wake up by tag_ctl
+    //3. some data arrive
+    int old_data, old_awake;
+    stuct tag_service *tag_service;
+
+    old_data = data_received->data_received;
+    tag_service = container_of();
+    old_awake = tag_service->awake_all;
+
     #ifdef WAIT_EV_TO
     //Used before tag_send was implemented
-    wait_event_interruptible_timeout(receiving_queue, 0, msecs_to_jiffies(SEC_EV_TO*1000));
+    wait_event_interruptible_timeout(receiving_queue, (old_data != rcvng_level->data_received) || (old_awake != tag_service->awake_all), msecs_to_jiffies(SEC_EV_TO*1000));
     #else
     wait_event_interruptible(receiving_queue, 0);
     #endif
 
-    //TODO: Insert magic here
-    
-
-    return;
+    //distinguish return codes
+    if(old_data != rcvng_level->data_received){
+        return 0;
+    }else if(old_awake != tag_service->awake_all){
+        return TRHEAD_WOKE_UP;
+    }else{
+        return SIGNAL_ARRIVED;
+    }
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
@@ -224,7 +240,7 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
 {
 #endif
 
-    int orig_descriptor, descriptor, ret;
+    int orig_descriptor, descriptor, ret, ret_rcv;
     struct tag_service *tag_service;
     struct tag_levels_list *rcvng_level;
     orig_descriptor = tag;
@@ -268,17 +284,20 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
 
     //checking password, if needed
     if((ret = check_password(tag_service, orig_descriptor)) != 0){
+        down(&semaphores[descriptor]);
         tag_error(ret, TAG_RECEIVE);
         return ret;
     }
     //checking permission
     if((ret = check_permission(tag_service)) != 0){
+        down(&semaphores[descriptor]);
         tag_error(ret, TAG_RECEIVE);
         return ret;
     }
 
     //putting metadata into the right place
     if((rcvng_level = put_receive_metadata(tag_service, level, buffer, size)) == NULL){
+        down(&semaphores[descriptor]);
         tag_error(PUT_META_ERR, TAG_RECEIVE);
         return PUT_META_ERR;
     }
@@ -286,12 +305,16 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
         printk(KERN_DEBUG "%s: Metadata inserted", TAG_RECEIVE);
 
     //going to sleep (until given coindition is met)
-    receive();
+    //the call can fail due to AWAKE ALL ops or signal received
+    if((ret_rcv = receive(rcvng_level)) != 0){
+        tag_error(ret_rcv, TAG_RECEIVE);
+    }
 
     //if awake, clean data put preavusly
     //AND if this thread was the last listening for data on this levels
     //do the appropiate cleanup operations
     if((ret = clean_up_metadata(tag_service, rcvng_level)) != 0){
+        down(&semaphores[descriptor]);
         tag_error(ret, TAG_RECEIVE);
         return ret;
     }
@@ -302,7 +325,7 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
     down(&semaphores[descriptor]);
 
     //module_put(THIS_MODULE);
-    return 0;
+    return ret_rcv;
 }
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
 static unsigned long sys_tag_receive = (unsigned long) __x64_sys_tag_receive;
