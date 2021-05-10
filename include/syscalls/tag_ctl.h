@@ -22,10 +22,13 @@ int remove_tag_service(int descriptor)
     //NB: we are unpreemtable (spinlock), so this thread will
     //never go to sleep because of down_->try<-lock.
     //This is more like a 'reverse semaphore'...
-    if(down_trylock(&semaphores[descriptor])){
+    AUDIT
+        printk(KERN_DEBUG "%s: Semaphore count %u", TAG_CTL, semaphores[descriptor].count);
+    if(!down_trylock(&semaphores[descriptor])){
         //if i am able to acquire 2 time the semaphore,
         //some thread has the tag service.
-        if(down_trylock(&semaphores[descriptor])){
+        if(!down_trylock(&semaphores[descriptor])){
+            up(&semaphores[descriptor]);
             up(&semaphores[descriptor]);
             spin_unlock(&tag_tbl_spin);
             return SERVICE_IN_USE;
@@ -81,6 +84,7 @@ int remove_tag_service(int descriptor)
         printk(KERN_DEBUG "%s: tag table updated", TAG_CTL);
 
     //done
+    up(&semaphores[descriptor]);
     spin_unlock(&tag_tbl_spin);
     return 0;
 }

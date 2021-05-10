@@ -1,4 +1,55 @@
 
+//TODO, remove after testing
+void level_x_ray(void){
+
+    int i, j;
+    char *submod = "X-RAY";
+    struct tag_levels_list *cur_levels;
+    struct receiving_threads *cur_tr;
+
+    printk(KERN_ALERT "%s: SCAN STARING", submod);
+
+    //function that scans the WHOLE tag Table
+    for(i = 0; i < TBL_ENTRIES_NUM; i++){
+
+        if(tag_table[i] == NULL){
+            continue;
+        }
+        printk(KERN_DEBUG "%s: Table entry %d", submod, i);
+
+        //scanning levels information
+        cur_levels = tag_table[i]->tag_levels;
+        while(1){
+            if(cur_levels == NULL){
+                printk(KERN_DEBUG "%s: Table Entry %d IS EMPTY", submod, i);
+                break;
+            }
+
+            //per each level print informations
+            printk(KERN_DEBUG "%s: Level %d, Waiting Threads: %d, Waiting thread PIDs:", submod, cur_levels->level_num, cur_levels->level.waiting_threads);
+            //waiting pid:
+
+            cur_tr =  cur_levels->level.threads;
+            for(j = 0; j < cur_levels->level.waiting_threads; j++){
+                if(cur_tr == NULL){
+                    printk(KERN_DEBUG "%s: WTF, threads data structure is NULL", submod);
+                    continue;
+                }
+                printk(KERN_DEBUG "%s: Thread PID: %u", submod, cur_tr->data.pid);
+                cur_tr = cur_tr->next;
+            }
+
+            cur_levels = cur_levels->next;
+            if(cur_levels == NULL)
+                break;
+        }
+    }
+
+    printk(KERN_ALERT "%s: SCAN DONE", submod);
+
+    return;
+}
+
 //function that puts metadata needed to receive a message using tag service
 struct tag_levels_list* put_receive_metadata(struct tag_service *tag_service, int level, char* buffer, size_t size)
 {
@@ -103,6 +154,9 @@ int remove_thread_metadata(struct tag_levels_list *rcvng_level)
     pid_t pid;
     pid = current->pid;
 
+    AUDIT
+        printk(KERN_DEBUG "%s: Removing thread metadata", TAG_RECEIVE);
+
     prev_tr = NULL;
     spin_lock(&rcvng_level->level.lock);
     for(current_tr = rcvng_level->level.threads; ; current_tr = current_tr->next){
@@ -127,15 +181,15 @@ int remove_thread_metadata(struct tag_levels_list *rcvng_level)
             }
             kfree(current_tr);
             //Metadata removed
-            //decreasing semaphore count
+            rcvng_level->level.waiting_threads -= 1;
             spin_unlock(&rcvng_level->level.lock);
             return 0;
         }
         prev_tr = current_tr;
     }
-    //decreasing semaphore count -> the thread has finished working with this tag service
-    rcvng_level->level.waiting_threads -= 1;
-    spin_unlock(&rcvng_level->level.lock);
+
+    AUDIT
+        printk(KERN_DEBUG "%s: Finished removing thread metadata", TAG_RECEIVE);
     return PID_NF;
 }
 
@@ -145,6 +199,8 @@ int clean_up_metadata(struct tag_service *tag_service, struct tag_levels_list *r
     //when the thread wakes up, he needs to free
     //all the allocated data.
     int ret;
+
+    //level_x_ray();
 
     //if the thread wasn't the last on the level,
     //he has to free ONLY the receiving_threads entry
@@ -158,6 +214,8 @@ int clean_up_metadata(struct tag_service *tag_service, struct tag_levels_list *r
     //if the thread was the last standing (on the tag service) he has to
     //delete the entire tag_levels_list
     if(tag_service->tag_levels->next == NULL){
+        AUDIT
+            printk(KERN_DEBUG "%s: Last thread on this tag service", TAG_RECEIVE);
         kfree(rcvng_level->level.threads);
         kfree(tag_service->tag_levels);
         tag_service->tag_levels = NULL;
@@ -167,10 +225,16 @@ int clean_up_metadata(struct tag_service *tag_service, struct tag_levels_list *r
     //If the thread was the last on its level (but not on the tag service) he has to
     //delete only his tag_levels_list entry.
     //Removing the level metadata
+    AUDIT
+        printk(KERN_DEBUG "%s: Last thread on this level", TAG_RECEIVE);
     if(rcvng_level->prev == NULL){
         tag_service->tag_levels = rcvng_level->next;
+        tag_service->tag_levels->prev = NULL;
     }else{
-        rcvng_level->prev = rcvng_level->next;
+        rcvng_level->prev->next = rcvng_level->next;
+        if(rcvng_level->next != NULL){
+            rcvng_level->next->prev = rcvng_level->prev;
+        }
     }
     kfree(rcvng_level);
     spin_unlock(&tag_service->lvl_spin);
@@ -183,8 +247,8 @@ int clean_up_metadata(struct tag_service *tag_service, struct tag_levels_list *r
 void receive(void)
 {
     //wait event interruptible with different cmds
-    int pippo = 0;
-    wait_event_interruptible(receiving_queue, pippo);
+    //int pippo = 0;
+    //wait_event_interruptible(receiving_queue, pippo);
 
     //TODO: Insert magic here
 
@@ -216,25 +280,23 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
         //spin_unlock(&tag_tbl_spin);
         return descriptor;
     }
-    //locking on the semaphore of the tag_service
-    up(&semaphores[descriptor]);
+
     preempt_enable();
     tag_service = tag_table[descriptor];
 
-    //this trylock will always be satisfyed
+    //if this one is not satisfied then the lock
+    //was already acquired by the remover
     if(down_trylock(&semaphores[descriptor])){
-        //if this one is not satisfied then the lock
-        //was already acquired by the remover
-        if(!down_trylock(&semaphores[descriptor])){
-            //resetting the value to 0
-            down(&semaphores[descriptor]);
-            return BEING_DELETED;
-        }else{
-            //this means that the remover ops has not started.
-            //Resetting value to previous +1
-            up(&semaphores[descriptor]);
-        }
+        //resetting the value to 0
+        down(&semaphores[descriptor]);
+        return BEING_DELETED;
     }
+    //this means that the remover ops has not started.
+    //Resetting value to previous +1
+    up(&semaphores[descriptor]);
+    up(&semaphores[descriptor]);
+    AUDIT
+        printk(KERN_DEBUG "%s: Semaphore count %u", TAG_RECEIVE, semaphores[descriptor].count);
 
     //TODO postponing cleaner timer to corresponding descriptor
 
@@ -262,6 +324,8 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
 
     //going to sleep (until given coindition is met)
     //receive();
+
+    //TODO What is happening ??
 
     //if awake, clean data put preavusly
     //AND if this thread was the last listening for data on this levels
