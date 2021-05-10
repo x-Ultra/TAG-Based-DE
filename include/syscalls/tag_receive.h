@@ -212,7 +212,7 @@ void receive(void)
     #endif
 
     //TODO: Insert magic here
-
+    
 
     return;
 }
@@ -287,8 +287,6 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
 
     //going to sleep (until given coindition is met)
     receive();
-
-    //TODO What is happening ??
 
     //if awake, clean data put preavusly
     //AND if this thread was the last listening for data on this levels

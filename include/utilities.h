@@ -61,59 +61,6 @@ void tag_error(int errorcode, char* modname)
 }
 
 
-int check_descriptor(int descriptor, char* caller)
-{
-    int priv_descriptor;
-
-    //is descriptor good ?
-    if((unsigned int)descriptor >= TBL_ENTRIES_NUM){
-        //maybe it comes from an IPC_PRIVATE service
-        priv_descriptor = (descriptor << PRIV_PWD_BITS) >> PRIV_PWD_BITS;
-        //let's do the check again
-        if(priv_descriptor >= TBL_ENTRIES_NUM || priv_descriptor < 0){
-            return INVALID_DESCR;
-        }
-        descriptor = priv_descriptor;
-    }
-    if(tag_table[descriptor] == NULL){
-        AUDIT
-            printk(KERN_ERR "%s: tag_table[descriptor] is NULL", caller);
-        return INVALID_DESCR;
-    }
-
-    return descriptor;
-}
-
-
-int check_password(struct tag_service *tag_service, int descriptor)
-{
-    int pwd;
-
-    if(tag_service->key == TAG_IPC_PRIVATE){
-        pwd = descriptor >> (sizeof(unsigned int)*8 - PRIV_PWD_BITS);
-        if(pwd != tag_service->ipc_private_pwd){
-            return WRONG_PWD;
-        }
-    }
-
-    return 0;
-}
-
-
-int check_permission(struct tag_service *tag_service)
-{
-    kuid_t EUID;
-
-    if(tag_service->permission == PERMISSION_USER){
-        EUID = current_euid();
-        if(!uid_eq(EUID, tag_service->creator_euid)){
-            return INVALID_EUID;
-        }
-    }
-
-    return 0;
-}
-
 //function used to scan the tag table
 void level_x_ray(void){
 

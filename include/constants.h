@@ -55,6 +55,9 @@ unsigned int positron = 1;
 #define PUT_META_ERR -4001
 #define PID_NF -4002
 
+//seconds to wait if bruteforce detected
+#define BRUTE_SLEEP 3
+
 #define DEBUG
 #define WAIT_EV_TO
 //secconds to sleep in the wait queue during a tag_receive

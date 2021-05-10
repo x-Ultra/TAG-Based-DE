@@ -26,6 +26,8 @@
 #include <linux/wait.h>
 //jiffies used during tag_receive Testing
 #include <linux/jiffies.h>
+//tty used to print warning message
+#include <linux/tty.h>
 
 #include "include/architecture.h"
 #include "include/security.h"

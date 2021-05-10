@@ -51,6 +51,7 @@ struct tag_service{
 };
 
 DECLARE_WAIT_QUEUE_HEAD(receiving_queue);
+DECLARE_WAIT_QUEUE_HEAD(badguys_queue);
 
 //TODO check allignment and false cache sharing
 struct tag_service *tag_table[TBL_ENTRIES_NUM] __attribute__((aligned(8)));
