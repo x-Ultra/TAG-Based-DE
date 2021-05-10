@@ -55,7 +55,11 @@ unsigned int positron = 1;
 #define PUT_META_ERR -4001
 #define PID_NF -4002
 
-#define DEBUG 1
+#define DEBUG
+#define WAIT_EV_TO
+//secconds to sleep in the wait queue during a tag_receive
+//if WAIT_EV_TO is defined (used for testing)
+#define SEC_EV_TO 3
 
 #ifdef DEBUG
 #define AUDIT if(1)

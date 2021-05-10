@@ -1,55 +1,4 @@
 
-//TODO, remove after testing
-void level_x_ray(void){
-
-    int i, j;
-    char *submod = "X-RAY";
-    struct tag_levels_list *cur_levels;
-    struct receiving_threads *cur_tr;
-
-    printk(KERN_ALERT "%s: SCAN STARING", submod);
-
-    //function that scans the WHOLE tag Table
-    for(i = 0; i < TBL_ENTRIES_NUM; i++){
-
-        if(tag_table[i] == NULL){
-            continue;
-        }
-        printk(KERN_DEBUG "%s: Table entry %d", submod, i);
-
-        //scanning levels information
-        cur_levels = tag_table[i]->tag_levels;
-        while(1){
-            if(cur_levels == NULL){
-                printk(KERN_DEBUG "%s: Table Entry %d IS EMPTY", submod, i);
-                break;
-            }
-
-            //per each level print informations
-            printk(KERN_DEBUG "%s: Level %d, Waiting Threads: %d, Waiting thread PIDs:", submod, cur_levels->level_num, cur_levels->level.waiting_threads);
-            //waiting pid:
-
-            cur_tr =  cur_levels->level.threads;
-            for(j = 0; j < cur_levels->level.waiting_threads; j++){
-                if(cur_tr == NULL){
-                    printk(KERN_DEBUG "%s: WTF, threads data structure is NULL", submod);
-                    continue;
-                }
-                printk(KERN_DEBUG "%s: Thread PID: %u", submod, cur_tr->data.pid);
-                cur_tr = cur_tr->next;
-            }
-
-            cur_levels = cur_levels->next;
-            if(cur_levels == NULL)
-                break;
-        }
-    }
-
-    printk(KERN_ALERT "%s: SCAN DONE", submod);
-
-    return;
-}
-
 //function that puts metadata needed to receive a message using tag service
 struct tag_levels_list* put_receive_metadata(struct tag_service *tag_service, int level, char* buffer, size_t size)
 {
@@ -158,7 +107,6 @@ int remove_thread_metadata(struct tag_levels_list *rcvng_level)
         printk(KERN_DEBUG "%s: Removing thread metadata", TAG_RECEIVE);
 
     prev_tr = NULL;
-    spin_lock(&rcvng_level->level.lock);
     for(current_tr = rcvng_level->level.threads; ; current_tr = current_tr->next){
         if(current_tr->data.pid == pid){
             if(current_tr->next != NULL){
@@ -182,7 +130,6 @@ int remove_thread_metadata(struct tag_levels_list *rcvng_level)
             kfree(current_tr);
             //Metadata removed
             rcvng_level->level.waiting_threads -= 1;
-            spin_unlock(&rcvng_level->level.lock);
             return 0;
         }
         prev_tr = current_tr;
@@ -204,21 +151,30 @@ int clean_up_metadata(struct tag_service *tag_service, struct tag_levels_list *r
 
     //if the thread wasn't the last on the level,
     //he has to free ONLY the receiving_threads entry
+    spin_lock(&rcvng_level->level.lock);
     if(rcvng_level->level.waiting_threads > 1){
         ret = remove_thread_metadata(rcvng_level);
+        spin_unlock(&rcvng_level->level.lock);
         return ret;
     }
+
     //otherwise, locking the "situation" on the thread level
     spin_lock(&tag_service->lvl_spin);
 
     //if the thread was the last standing (on the tag service) he has to
     //delete the entire tag_levels_list
+    if(tag_service->tag_levels == NULL){
+        printk(KERN_ALERT "%s: tag_service->tag_levels is NULL", TAG_RECEIVE);
+        spin_unlock(&tag_service->lvl_spin);
+        return UNEXPECTED;
+    }
     if(tag_service->tag_levels->next == NULL){
         AUDIT
             printk(KERN_DEBUG "%s: Last thread on this tag service", TAG_RECEIVE);
         kfree(rcvng_level->level.threads);
         kfree(tag_service->tag_levels);
         tag_service->tag_levels = NULL;
+        spin_unlock(&tag_service->lvl_spin);
         return 0;
     }
 
@@ -236,6 +192,7 @@ int clean_up_metadata(struct tag_service *tag_service, struct tag_levels_list *r
             rcvng_level->next->prev = rcvng_level->prev;
         }
     }
+    kfree(rcvng_level->level.threads);
     kfree(rcvng_level);
     spin_unlock(&tag_service->lvl_spin);
 
@@ -247,8 +204,12 @@ int clean_up_metadata(struct tag_service *tag_service, struct tag_levels_list *r
 void receive(void)
 {
     //wait event interruptible with different cmds
-    //int pippo = 0;
-    //wait_event_interruptible(receiving_queue, pippo);
+    #ifdef WAIT_EV_TO
+    //Used before tag_send was implemented
+    wait_event_interruptible_timeout(receiving_queue, 0, msecs_to_jiffies(SEC_EV_TO*1000));
+    #else
+    wait_event_interruptible(receiving_queue, 0);
+    #endif
 
     //TODO: Insert magic here
 
@@ -278,10 +239,12 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
     preempt_disable();
     if((descriptor = check_descriptor(tag, TAG_CTL)) < 0){
         //spin_unlock(&tag_tbl_spin);
+        preempt_enable();
         return descriptor;
     }
-
     preempt_enable();
+
+
     tag_service = tag_table[descriptor];
 
     //if this one is not satisfied then the lock
@@ -323,7 +286,7 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
         printk(KERN_DEBUG "%s: Metadata inserted", TAG_RECEIVE);
 
     //going to sleep (until given coindition is met)
-    //receive();
+    receive();
 
     //TODO What is happening ??
 
@@ -334,6 +297,7 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
         tag_error(ret, TAG_RECEIVE);
         return ret;
     }
+
     AUDIT
         printk(KERN_DEBUG "%s: Metadata cleaned-up", TAG_RECEIVE);
     //decreasing semaphore count

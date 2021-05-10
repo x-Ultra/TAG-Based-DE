@@ -113,3 +113,50 @@ int check_permission(struct tag_service *tag_service)
 
     return 0;
 }
+
+//function used to scan the tag table
+void level_x_ray(void){
+
+    int i, j;
+    char *submod = "X-RAY";
+    struct tag_levels_list *cur_levels;
+    struct receiving_threads *cur_tr;
+
+    //function that scans the WHOLE tag Table
+    for(i = 0; i < TBL_ENTRIES_NUM; i++){
+
+        if(tag_table[i] == NULL){
+            continue;
+        }
+        printk(KERN_DEBUG "%s: Table entry %d", submod, i);
+
+        //scanning levels information
+        cur_levels = tag_table[i]->tag_levels;
+        while(1){
+            if(cur_levels == NULL){
+                printk(KERN_DEBUG "%s: Table Entry %d IS EMPTY", submod, i);
+                break;
+            }
+
+            //per each level print informations
+            printk(KERN_DEBUG "%s: Level %d, Waiting Threads: %d, Waiting thread PIDs:", submod, cur_levels->level_num, cur_levels->level.waiting_threads);
+            //waiting pid:
+
+            cur_tr =  cur_levels->level.threads;
+            for(j = 0; j < cur_levels->level.waiting_threads; j++){
+                if(cur_tr == NULL){
+                    printk(KERN_ALERT "%s: Warining, threads data structure is NULL", submod);
+                    continue;
+                }
+                printk(KERN_DEBUG "%s: Thread PID: %u", submod, cur_tr->data.pid);
+                cur_tr = cur_tr->next;
+            }
+
+            cur_levels = cur_levels->next;
+            if(cur_levels == NULL)
+                break;
+        }
+    }
+
+    return;
+}

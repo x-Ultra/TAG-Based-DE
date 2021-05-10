@@ -24,6 +24,8 @@
 #include <linux/semaphore.h>
 //wait event queue
 #include <linux/wait.h>
+//jiffies used during tag_receive Testing
+#include <linux/jiffies.h>
 
 #include "include/architecture.h"
 #include "include/security.h"
