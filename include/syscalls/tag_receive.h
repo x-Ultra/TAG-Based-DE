@@ -61,6 +61,10 @@ struct tag_levels_list* put_receive_metadata(struct tag_service *tag_service, in
             }
         }
     }
+    spin_lock(&rcvng_level->level.lock);
+    //locking low level before unlocking to avoid that
+    //a receiving thread that is cleaning up data and that was the only one left
+    //remove the tag service or the tag level
     spin_unlock(&tag_service->lvl_spin);
 
     //FINDING THREADS METADATA POSITION
@@ -74,7 +78,6 @@ struct tag_levels_list* put_receive_metadata(struct tag_service *tag_service, in
     rcv_thread->data.size = size;
     rcv_thread->next = NULL;
     //------end of thread new data to insert
-    spin_lock(&rcvng_level->level.lock);
     if(rcvng_level->level.waiting_threads == 0){
         rcvng_level->level.threads = rcv_thread;
     }else{
@@ -159,9 +162,21 @@ int clean_up_metadata(struct tag_service *tag_service, struct tag_levels_list *r
         spin_unlock(&rcvng_level->level.lock);
         return ret;
     }
+    spin_unlock(&rcvng_level->level.lock);
 
-    //otherwise, locking the "situation" on the thread level
-    spin_lock(&tag_service->lvl_spin);
+    //if there is only one thread, say A, it may happen that A is
+    //trying to enter and has already got the tag_level spin. Meanwhile
+    //thins thread, say B, has preaviusly saw that there is only 1
+    //remaining thread. T avoid this we goagain the check by
+    //locking at a higher level.
+    spin_lock(&tag_service->lvl_spin); // <- the locking point has changed
+    spin_lock(&rcvng_level->level.lock);
+    if(rcvng_level->level.waiting_threads > 1){
+        ret = remove_thread_metadata(rcvng_level);
+        spin_unlock(&rcvng_level->level.lock);
+        spin_unlock(&tag_service->lvl_spin);
+        return ret;
+    }
 
     //if the thread was the last standing (on the tag service) he has to
     //delete the entire tag_levels_list
@@ -205,26 +220,30 @@ int clean_up_metadata(struct tag_service *tag_service, struct tag_levels_list *r
 //function that uses a sleep wait condition queue
 int receive(struct tag_levels_list *rcvng_level)
 {
-    //form now on, the thread will wake up wheter
+    //form now on, the thread will wake up if
     //1. he's hit by a signal
-    //2. he's wake up by tag_ctl
-    //3. some data arrive
-    int old_data, old_awake;
-    struct tag_service *tag_serv;
+    //2. he's woken up by tag_ctl
+    //3. some data arrives
+    //int old_data, old_awake;
+    //struct tag_service *tag_serv;
 
-    old_data = rcvng_level->level.data_received;
-    tag_serv = container_of(&rcvng_level, struct tag_service, tag_levels);
-    old_awake = tag_serv->awake_all;
+    //old_data = rcvng_level->level.data_received;
+    //tag_serv = container_of(&rcvng_level, struct tag_service, tag_levels);
+    //old_awake = tag_serv->awake_all;
 
     #ifdef WAIT_EV_TO
     //Used before tag_send was implemented
-    wait_event_interruptible_timeout(receiving_queue, (old_data != rcvng_level->level.data_received) || (old_awake != tag_serv->awake_all), msecs_to_jiffies(SEC_EV_TO*1000));
+    wait_event_interruptible_timeout(receiving_queue, 0 == 1, msecs_to_jiffies(SEC_EV_TO*1000));
+    //wait_event_interruptible_timeout(receiving_queue, (old_data != rcvng_level->level.data_received) || (old_awake != tag_serv->awake_all), msecs_to_jiffies(SEC_EV_TO*1000));
     #else
     wait_event_interruptible(receiving_queue, (old_data != rcvng_level->level.data_received) || (old_awake != tag_serv->awake_all));
     #endif
 
+    /*
     //distinguish return codes
     if(old_data != rcvng_level->level.data_received){
+        AUDIT
+            printk(KERN_DEBUG "%s: ", TAG_RECEIVE);
         return 0;
     }else if(old_awake != tag_serv->awake_all){
         return THREAD_WOKE_UP;
@@ -232,6 +251,8 @@ int receive(struct tag_levels_list *rcvng_level)
         //or timer if WAIT_EV_TO is defined
         return SIGNAL_ARRIVED;
     }
+    */
+    return 0;
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
