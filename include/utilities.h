@@ -113,3 +113,70 @@ void level_x_ray(void){
 
     return;
 }
+
+
+//This function is called before areceive and/or send operations
+//to check validity of input data.
+//It returns the 'real' descriptor associated to the tag_service referred
+int check_input_data_head(int tag){
+
+    int orig_descriptor, descriptor, ret;
+    struct tag_service *tag_service;
+    orig_descriptor = tag;
+
+    //here we want to be as fast as possible to (eventually) arrive
+    //sooner than the remover, same as tag_receive
+    preempt_disable();
+    if((descriptor = check_descriptor(tag, TAG_SEND)) < 0){
+        preempt_enable();
+        return descriptor;
+    }
+    preempt_enable();
+    tag_service = tag_table[descriptor];
+
+    //if this one is not satisfied then the lock
+    //was already acquired by the remover...
+    //this means that the tag service is being removed...
+    //nothing to do here.
+    if(down_trylock(&semaphores[descriptor])){
+        //resetting the value to 0
+        down(&semaphores[descriptor]);
+        tag_error(BEING_DELETED, TAG_SEND);
+        return BEING_DELETED;
+    }
+    //if w're here the remover ops has not started.
+    //Resetting value to previous +1
+    up(&semaphores[descriptor]);
+    up(&semaphores[descriptor]);
+    AUDIT
+        printk(KERN_DEBUG "%s: Semaphore count %u", TAG_SEND, semaphores[descriptor].count);
+
+    //TODO postponing cleaner timer to corresponding descriptor
+
+    //from here in, the cleaner wont wake up for CLEANER_SLEEP seconds
+    //on this tag table entry
+
+    //checking password, if needed
+    if((ret = check_password(tag_service, orig_descriptor)) != 0){
+        down(&semaphores[descriptor]);
+        tag_error(ret, TAG_SEND);
+        return ret;
+    }
+    //checking permission
+    if((ret = check_permission(tag_service)) != 0){
+        down(&semaphores[descriptor]);
+        tag_error(ret, TAG_SEND);
+        return ret;
+    }
+
+    return descriptor;
+}
+
+int check_input_data_tail(int descriptor){
+
+    //decreasing semaphore count, increased in the head part to
+    //block the cleaner deleating the tag service
+    down(&semaphores[descriptor]);
+
+    return 0;
+}

@@ -38,6 +38,8 @@ unsigned int positron = 1;
 #define INVALID_EUID -2
 #define KEY_NOT_FOUND -3
 #define BEING_DELETED -4
+#define WRONG_PWD -5
+#define INVALID_DESCR -6
 
 //tag_get error codes
 #define KEY_USED -1001
@@ -47,9 +49,7 @@ unsigned int positron = 1;
 #define TAG_TBL_FULL -1005
 
 //tag_ctl error codes
-#define INVALID_DESCR -2001
-#define SERVICE_IN_USE -2002
-#define WRONG_PWD -2003
+#define SERVICE_IN_USE -2001
 
 //tag_receive error codes
 #define PUT_META_ERR -4001

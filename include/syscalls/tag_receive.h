@@ -224,26 +224,27 @@ int receive(struct tag_levels_list *rcvng_level)
     //1. he's hit by a signal
     //2. he's woken up by tag_ctl
     //3. some data arrives
-    //int old_data, old_awake;
-    //struct tag_service *tag_serv;
+    int old_data, old_awake;
+    struct tag_service *tag_serv;
 
-    //old_data = rcvng_level->level.data_received;
-    //tag_serv = container_of(&rcvng_level, struct tag_service, tag_levels);
-    //old_awake = tag_serv->awake_all;
+    tag_serv = container_of(&rcvng_level, struct tag_service, tag_levels);
+    old_awake = tag_serv->awake_all;
+
+    spin_lock(&rcvng_level->level.lock);
+    old_data = rcvng_level->level.data_received;
+    spin_unlock(&rcvng_level->level.lock);
 
     #ifdef WAIT_EV_TO
     //Used before tag_send was implemented
-    wait_event_interruptible_timeout(receiving_queue, 0 == 1, msecs_to_jiffies(SEC_EV_TO*1000));
-    //wait_event_interruptible_timeout(receiving_queue, (old_data != rcvng_level->level.data_received) || (old_awake != tag_serv->awake_all), msecs_to_jiffies(SEC_EV_TO*1000));
+    wait_event_interruptible_timeout(receiving_queue, (old_data != rcvng_level->level.data_received) || (old_awake != tag_serv->awake_all), msecs_to_jiffies(SEC_EV_TO*1000));
     #else
     wait_event_interruptible(receiving_queue, (old_data != rcvng_level->level.data_received) || (old_awake != tag_serv->awake_all));
     #endif
 
-    /*
     //distinguish return codes
     if(old_data != rcvng_level->level.data_received){
         AUDIT
-            printk(KERN_DEBUG "%s: ", TAG_RECEIVE);
+            printk(KERN_DEBUG "%s: New data has arrived !", TAG_RECEIVE);
         return 0;
     }else if(old_awake != tag_serv->awake_all){
         return THREAD_WOKE_UP;
@@ -251,8 +252,7 @@ int receive(struct tag_levels_list *rcvng_level)
         //or timer if WAIT_EV_TO is defined
         return SIGNAL_ARRIVED;
     }
-    */
-    return 0;
+
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
@@ -262,60 +262,20 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
 {
 #endif
 
-    int orig_descriptor, descriptor, ret, ret_rcv;
-    struct tag_service *tag_service;
+    int descriptor, ret_rcv, ret;
     struct tag_levels_list *rcvng_level;
-    orig_descriptor = tag;
+    struct tag_service *tag_service;
+
     /*
     if(try_module_get(THIS_MODULE) == 0){
 		return MOD_INUSE;
 	}
     */
-
-    //here we want to be as fast as possible to (eventually) arrive
-    //sooner than the remover
-    preempt_disable();
-    if((descriptor = check_descriptor(tag, TAG_CTL)) < 0){
-        //spin_unlock(&tag_tbl_spin);
-        preempt_enable();
+    if((descriptor = check_input_data_head(tag)) < 0){
+        //descriptor contains the error code
         return descriptor;
     }
-    preempt_enable();
-
-
     tag_service = tag_table[descriptor];
-
-    //if this one is not satisfied then the lock
-    //was already acquired by the remover
-    if(down_trylock(&semaphores[descriptor])){
-        //resetting the value to 0
-        down(&semaphores[descriptor]);
-        return BEING_DELETED;
-    }
-    //this means that the remover ops has not started.
-    //Resetting value to previous +1
-    up(&semaphores[descriptor]);
-    up(&semaphores[descriptor]);
-    AUDIT
-        printk(KERN_DEBUG "%s: Semaphore count %u", TAG_RECEIVE, semaphores[descriptor].count);
-
-    //TODO postponing cleaner timer to corresponding descriptor
-
-    //from here in, the cleaner wont wake up for CLEANER_SLEEP seconds
-    //on this tag table entry
-
-    //checking password, if needed
-    if((ret = check_password(tag_service, orig_descriptor)) != 0){
-        down(&semaphores[descriptor]);
-        tag_error(ret, TAG_RECEIVE);
-        return ret;
-    }
-    //checking permission
-    if((ret = check_permission(tag_service)) != 0){
-        down(&semaphores[descriptor]);
-        tag_error(ret, TAG_RECEIVE);
-        return ret;
-    }
 
     //putting metadata into the right place
     if((rcvng_level = put_receive_metadata(tag_service, level, buffer, size)) == NULL){
@@ -343,8 +303,11 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
 
     AUDIT
         printk(KERN_DEBUG "%s: Metadata cleaned-up", TAG_RECEIVE);
-    //decreasing semaphore count
-    down(&semaphores[descriptor]);
+
+    if(check_input_data_tail(descriptor) != 0){
+        printk(KERN_ERR "%s: check_input_data_tail is nor zero", TAG_SEND);
+        return UNEXPECTED;
+    }
 
     //module_put(THIS_MODULE);
     return ret_rcv;
