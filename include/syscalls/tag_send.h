@@ -135,14 +135,11 @@ int send_data(struct tag_service *tag_service, int level, char* buffer, size_t s
     wake_up(&receiving_queue);
 
     //3. Increment level.data_received (Beware of buffer overflow)
-    target_level->level.data_received += 1;
-    /*
-    if(target_level->level.data_received > (1 << 15) ){
+    if(target_level->level.data_received > (unsigned)(1 << 15) ){
         target_level->level.data_received = 0;
     }else{
         target_level->level.data_received += 1;
     }
-    */
 
     //4. Release lock
     spin_unlock(&target_level->level.lock);
@@ -159,6 +156,10 @@ asmlinkage int sys_tag_send(int tag, int level, char* buffer, size_t size)
 
     int descriptor, ret;
     struct tag_service *tag_service;
+
+    if(try_module_get(THIS_MODULE) == 0){
+		return MOD_INUSE;
+	}
 
     if((descriptor = check_input_data_head(tag)) < 0){
         //descriptor contains the error code
@@ -178,8 +179,7 @@ asmlinkage int sys_tag_send(int tag, int level, char* buffer, size_t size)
         return UNEXPECTED;
     }
 
-    //module_put(THIS_MODULE);
-    //return ret_snd;
+    module_put(THIS_MODULE);
     return 0;
 }
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)

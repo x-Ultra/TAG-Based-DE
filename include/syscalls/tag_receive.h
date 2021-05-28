@@ -267,11 +267,11 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
     struct tag_levels_list *rcvng_level;
     struct tag_service *tag_service;
 
-    /*
+    
     if(try_module_get(THIS_MODULE) == 0){
 		return MOD_INUSE;
 	}
-    */
+
     if((descriptor = check_input_data_head(tag)) < 0){
         //descriptor contains the error code
         return descriptor;
@@ -310,7 +310,7 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
         return UNEXPECTED;
     }
 
-    //module_put(THIS_MODULE);
+    module_put(THIS_MODULE);
     return ret_rcv;
 }
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)

@@ -90,6 +90,37 @@ int remove_tag_service(int descriptor)
 }
 
 
+int awake_all(int tag)
+{
+    int descriptor;
+    struct tag_service *tag_service;
+
+    //checking descrptor validity
+    if((descriptor = check_input_data_head(tag)) < 0){
+        //descriptor contains the error code
+        return descriptor;
+    }
+    tag_service = tag_table[descriptor];
+
+    AUDIT
+        printk(KERN_DEBUG "%s: Awaking on %d", TAG_CTL, descriptor);
+
+    if(tag_service->awake_all > (unsigned)(1 << 15) ){
+        tag_service->awake_all = 0;
+    }else{
+        tag_service->awake_all += 1;
+    }
+
+    wake_up(&receiving_queue);
+
+    if(check_input_data_tail(descriptor) != 0){
+        printk(KERN_ERR "%s: check_input_data_tail is not zero", TAG_SEND);
+        return UNEXPECTED;
+    }
+    return 0;
+}
+
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
 __SYSCALL_DEFINEx(2, _tag_ctl, int, tag, int, command){
 #else
@@ -98,16 +129,16 @@ asmlinkage int sys_tag_ctl(int tag, int command)
 #endif
     int retval;
 
-    /*
     if(try_module_get(THIS_MODULE) == 0){
 		return MOD_INUSE;
 	}
-    */
 
     switch(command){
         case AWAKE_ALL:
-            printk(KERN_DEBUG "%s: Not implemented yet", TAG_CTL);
-            return 0;
+            if((retval = awake_all(tag)) < 0){
+                tag_error(retval, TAG_CTL);
+            }
+            break;
         case REMOVE:
             if((retval = remove_tag_service(tag)) < 0){
                 tag_error(retval, TAG_CTL);
@@ -121,7 +152,7 @@ asmlinkage int sys_tag_ctl(int tag, int command)
     AUDIT
         printk(KERN_ALERT "%s: removing done", TAG_CTL);
 
-    //module_put(THIS_MODULE);
+    module_put(THIS_MODULE);
     return retval;
 }
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)

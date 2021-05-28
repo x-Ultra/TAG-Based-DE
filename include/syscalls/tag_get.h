@@ -212,11 +212,9 @@ asmlinkage int sys_tag_get(int key, int command, int permission)
 #endif
     int tag_descriptor;
 
-    /*
     if(try_module_get(THIS_MODULE) == 0){
 		return MOD_INUSE;
 	}
-    */
 
     //key reserved
     if(key == -1){
@@ -243,7 +241,7 @@ asmlinkage int sys_tag_get(int key, int command, int permission)
             break;
     }
 
-    //module_put(THIS_MODULE);
+    module_put(THIS_MODULE);
     return tag_descriptor;
 }
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
