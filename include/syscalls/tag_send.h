@@ -131,12 +131,18 @@ int send_data(struct tag_service *tag_service, int level, char* buffer, size_t s
     AUDIT
         printk(KERN_DEBUG "%s: Copyied to all receiver", TAG_SEND);
 
+    //TODO need to separate the queues ?
+    wake_up(&receiving_queue);
+
     //3. Increment level.data_received (Beware of buffer overflow)
+    target_level->level.data_received += 1;
+    /*
     if(target_level->level.data_received > (1 << 15) ){
         target_level->level.data_received = 0;
     }else{
         target_level->level.data_received += 1;
     }
+    */
 
     //4. Release lock
     spin_unlock(&target_level->level.lock);

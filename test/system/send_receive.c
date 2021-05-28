@@ -58,7 +58,7 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	for(int i = 0; i < num_receiver; ++i)
+	for(int i = 0; i < num_receiver+1; ++i)
 		wait(NULL);
 
 

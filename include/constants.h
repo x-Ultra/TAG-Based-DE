@@ -66,7 +66,7 @@ unsigned int positron = 1;
 #define BRUTE_SLEEP 3
 
 #define DEBUG
-#define WAIT_EV_TO
+//#define WAIT_EV_TO
 //secconds to sleep in the wait queue during a tag_receive
 //if WAIT_EV_TO is defined (used for testing)
 #define SEC_EV_TO 5
