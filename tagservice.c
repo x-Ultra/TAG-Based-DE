@@ -28,6 +28,8 @@
 #include <linux/jiffies.h>
 //tty used to print warning message
 #include <linux/tty.h>
+//usedto acquire TCB from pid
+#include <linux/pid.h>
 
 #include "include/architecture.h"
 #include "include/security.h"

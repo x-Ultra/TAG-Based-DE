@@ -5,7 +5,7 @@
 void prevent_bruteforce(char *char_module)
 {
 
-    char *gotcha_message = "\033[1;31mStop doing what you're doing... i see you !\033[0m\n";
+    char *gotcha_message = "\033[1;31mStop doing what you're doing... i see you !\n\033[0m\n";
     struct tty_struct *tty;
     tty = current->signal->tty;
 

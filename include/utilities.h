@@ -61,6 +61,9 @@ void tag_error(int errorcode, char* modname)
         case UNEXPECTED:
             printk(KERN_ALERT "%s: Unexpected error, check previous message", modname);
             break;
+        case BUFF_TOO_LARGE:
+            printk(KERN_ALERT "%s: buffer size is too large", TAG_SEND);
+        break;
         default:
             printk(KERN_ALERT "%s: Unknown error", modname);
     }

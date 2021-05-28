@@ -1,107 +1,113 @@
+/* auxiliary stuff */
+static inline void _write_cr3(unsigned long val) {
+
+          asm volatile("mov %0,%%cr3": : "r" (val));
+
+}
+
+static inline unsigned long _read_cr3(void) {
+
+	  unsigned long val;
+          asm volatile("mov %%cr3,%0":  "=r" (val) : );
+	  return val;
+
+}
+
+
 //function that does the actual copy of the metadata from the sender to receiver
-void send_to_thread(struct thread_rcvdata *thread_metadata, char* buff, size_t len)
+void send_to_thread(struct thread_rcvdata *thread_metadata, char* kern_buff, size_t len)
 {
+    int ret, min_size;
+    struct task_struct *the_task;
+    void** restore_pml4;
+    unsigned long restore_cr3;
+    struct mm_struct *restore_mm;
+    long pid = (long)thread_metadata->pid;
 
-    //TODO edit here
-   char buffer[LINE_SIZE];
-   long pid;
-   unsigned long addr;
-   long val;
-   int format = 0;
-   int i,j;
-   int ret = len;
+    //suppressing warnings
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wint-conversion"
+    restore_pml4 = (unsigned long)current->mm->pgd;
+    restore_mm = (unsigned long)current->mm;
+    restore_cr3 = _read_cr3();
+    #pragma GCC diagnostic pop
 
-   char* args[3];
+    rcu_read_lock();
 
-   struct task_struct *the_task;
-   void** restore_pml4;
-   unsigned long restore_cr3;
-   struct mm_struct *restore_mm;
+    //TODO check this
+    the_task = pid_task(find_vpid(pid), PIDTYPE_PID);
+    AUDIT
+        printk(KERN_DEBUG "%s: Sending at pid %ld", TAG_SEND, pid);
 
-      if(len >= LINE_SIZE) return -1;
-      ret = copy_from_user(buffer,buff,len);
-
-      j = 1;
-      for(i=0;i<len;i++){
-    	if(buffer[i] == ' ') {
-    		buffer[i] = '\0';
-    		args[j++] = buffer + i + 1;
-    		format++;
-    	}
-      }
-
-      if(format != 2) return -EBADMSG;//bad message
-
-      args[0] = buffer;
-
-      buffer[len] = '\0';
-      ret = kstrtol(args[0],10,&pid);
-      ret = kstrtol(args[1],10,&addr);
-      ret = kstrtol(args[2],10,&val);
-
-      AUDIT
-      printk("%s: args are: %ld - %lu - %ld\n",DEVICE_NAME,pid,addr,val);
-
-
-      restore_pml4 = (unsigned long)current->mm->pgd;
-      restore_mm = (unsigned long)current->mm;
-      restore_cr3 = _read_cr3();
-
-      rcu_read_lock();
-
-      the_task = pid_task(find_vpid(pid),PIDTYPE_PID);
-
-      if(!the_task){
+    if(!the_task){
       	rcu_read_unlock();
-    	return -ESRCH;//no such process
-      }
+        printk(KERN_ERR "%s: Process with pid %ld not found", TAG_SEND, pid);
+    	return;
+    }
 
+    //process not found
+    if(!(the_task->mm)){
+    	rcu_read_unlock();
+        return;
+    }
+    atomic_inc(&(the_task->mm->mm_count));//to be released on failures of below parts
 
-      if(!(the_task->mm)){
-      	rcu_read_unlock();
-            return -ESRCH;//no such process
-      }
-      atomic_inc(&(the_task->mm->mm_count));//to be released on failures of below parts
+    rcu_read_unlock();
 
-      rcu_read_unlock();
+    //no such device or address
+    if(!(the_task->mm->pgd)){
+    	atomic_dec(&(the_task->mm->mm_count));
+        return;
+    }
 
-      if(!(the_task->mm->pgd)){
-      	atomic_dec(&(the_task->mm->mm_count));
-            return  -ENXIO;//no such device or address
-      }
+    current->mm = the_task->mm;//this is needed to correctly handle empty zero memory access or other faults
+    _write_cr3(__pa(the_task->mm->pgd));
 
-      AUDIT
-      printk("%s: process %ld is there with its memory map\n",DEVICE_NAME,pid);
+    AUDIT
+        printk(KERN_DEBUG "%s: current moved to the address space of process %ld\n", TAG_SEND, pid);
 
-      current->mm = the_task->mm;//this is needed to correctly handle empty zero memory access or other faults
-      _write_cr3(__pa(the_task->mm->pgd));
+    //in this way receiver could use a buffer size > RD_BUFF_SIZE
+    //but, obviuusly, only RD_BUFF_SIZE will be copyied
+    if(len >= thread_metadata->size){
+        min_size = len;
+    }else{
+        min_size = thread_metadata->size;
+    }
+    //copying to user space
+    ret = copy_to_user((void*)thread_metadata->buffer, (void *)kern_buff, min_size);
+    //resume my own face
+    current->mm = restore_mm;
 
-      AUDIT
-      printk("%s: current moved to the address space of process %ld\n",DEVICE_NAME,pid);
+    _write_cr3(restore_cr3);
 
-      //do the hack
-      ret = copy_to_user((void*)addr,(void*)&val,sizeof(val));
+    AUDIT
+        printk("%s: current moved back to its own address space", TAG_SEND);
 
-      //resume my own face
-      current->mm = restore_mm;
-      _write_cr3(restore_cr3);
-
-      AUDIT
-      printk("%s: current moved back to its own address space\n",DEVICE_NAME);
-
-      atomic_dec(&(the_task->mm->mm_count));
-
-      return len;
-
+    atomic_dec(&(the_task->mm->mm_count));
 }
 
 
 int send_data(struct tag_service *tag_service, int level, char* buffer, size_t size)
 {
     struct tag_levels_list *target_level;
-    strunc receiving_threads *target_thread;
+    struct receiving_threads *target_thread;
+    char *kern_buffer;
 
-    //0. Fetching tag_level
+    if((kern_buffer = kmalloc(RW_BUFFER_SIZE, GFP_KERNEL)) == NULL){
+        return ERR_KMALLOC;
+    }
+
+    //Checking buffer size
+    if(size >= RW_BUFFER_SIZE){
+        return BUFF_TOO_LARGE;
+    }
+
+    //Copying from user, the sender buffer
+    if(copy_from_user(kern_buffer, buffer, size) != 0){
+        return CPY_ERR;
+    }
+
+    //Fetching tag_level
     for(target_level = tag_service->tag_levels; ; target_level = target_level->next){
         if(target_level == NULL){
             printk(KERN_ALERT "%s: tag_level is NULL in send ops", TAG_SEND);
@@ -120,8 +126,10 @@ int send_data(struct tag_service *tag_service, int level, char* buffer, size_t s
 
     //2. do the copy of the data in each receiving thread
     for(target_thread = target_level->level.threads; target_thread != NULL ;target_thread = target_thread->next){
-        send_to_thread(&target_thread.data, buffer, size);
+        send_to_thread(&target_thread->data, kern_buffer, size);
     }
+    AUDIT
+        printk(KERN_DEBUG "%s: Copyied to all receiver", TAG_SEND);
 
     //3. Increment level.data_received (Beware of buffer overflow)
     if(target_level->level.data_received > (1 << 15) ){

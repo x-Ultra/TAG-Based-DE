@@ -3,6 +3,7 @@
 //bits reserved to the passwrd. What password ? Check tag_get.h
 unsigned long PRIV_PWD_BITS;
 unsigned int positron = 1;
+#define RW_BUFFER_SIZE 4096
 
 //prsmission types
 #define PERMISSION_USER 0
@@ -57,6 +58,10 @@ unsigned int positron = 1;
 #define THREAD_WOKE_UP -4003
 #define SIGNAL_ARRIVED -4004
 
+//tag_send error codes
+#define BUFF_TOO_LARGE -5001
+#define CPY_ERR -5002
+
 //seconds to wait if bruteforce detected
 #define BRUTE_SLEEP 3
 
@@ -64,7 +69,7 @@ unsigned int positron = 1;
 #define WAIT_EV_TO
 //secconds to sleep in the wait queue during a tag_receive
 //if WAIT_EV_TO is defined (used for testing)
-#define SEC_EV_TO 3
+#define SEC_EV_TO 5
 
 #ifdef DEBUG
 #define AUDIT if(1)
