@@ -230,9 +230,10 @@ int receive(struct tag_levels_list *rcvng_level)
     tag_serv = container_of(&rcvng_level, struct tag_service, tag_levels);
     old_awake = tag_serv->awake_all;
 
-    spin_lock(&rcvng_level->level.lock);
+    //spinlock not needed. We do not need to keep track of messages order
+    //spin_lock(&rcvng_level->level.lock);
     old_data = rcvng_level->level.data_received;
-    spin_unlock(&rcvng_level->level.lock);
+    //spin_unlock(&rcvng_level->level.lock);
 
     #ifdef WAIT_EV_TO
     //Used before tag_send was implemented
@@ -305,7 +306,7 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
         printk(KERN_DEBUG "%s: Metadata cleaned-up", TAG_RECEIVE);
 
     if(check_input_data_tail(descriptor) != 0){
-        printk(KERN_ERR "%s: check_input_data_tail is nor zero", TAG_SEND);
+        printk(KERN_ERR "%s: check_input_data_tail is not zero", TAG_SEND);
         return UNEXPECTED;
     }
 
