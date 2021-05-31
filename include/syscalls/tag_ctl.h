@@ -105,18 +105,15 @@ int awake_all(int tag)
     AUDIT
         printk(KERN_DEBUG "%s: Awaking on %d", TAG_CTL, descriptor);
 
+    //No need to acquire the spinlock, semaphore acquired with check_input_data_tail
+    //will prevent the remotion of this level
     if(tag_service->awake_all > (unsigned)(1 << 15) ){
         tag_service->awake_all = 0;
-    }else{
-        tag_service->awake_all += 1;
     }
-
+    tag_service->awake_all += 1;
     wake_up(&receiving_queue);
 
-    if(check_input_data_tail(descriptor) != 0){
-        printk(KERN_ERR "%s: check_input_data_tail is not zero", TAG_SEND);
-        return UNEXPECTED;
-    }
+    check_input_data_tail(descriptor);
     return 0;
 }
 
@@ -149,8 +146,6 @@ asmlinkage int sys_tag_ctl(int tag, int command)
             retval = INVALID_CMD;
             break;
     }
-    AUDIT
-        printk(KERN_ALERT "%s: removing done", TAG_CTL);
 
     module_put(THIS_MODULE);
     return retval;

@@ -131,15 +131,14 @@ int send_data(struct tag_service *tag_service, int level, char* buffer, size_t s
     AUDIT
         printk(KERN_DEBUG "%s: Copyied to all receiver", TAG_SEND);
 
-    //TODO need to separate the queues ?
-    wake_up(&receiving_queue);
-
     //3. Increment level.data_received (Beware of buffer overflow)
     if(target_level->level.data_received > (unsigned)(1 << 15) ){
         target_level->level.data_received = 0;
-    }else{
-        target_level->level.data_received += 1;
     }
+    target_level->level.data_received += 1;
+
+    //TODO need to separate the queues ?
+    wake_up(&receiving_queue);
 
     //4. Release lock
     spin_unlock(&target_level->level.lock);
@@ -163,6 +162,7 @@ asmlinkage int sys_tag_send(int tag, int level, char* buffer, size_t size)
 
     if((descriptor = check_input_data_head(tag)) < 0){
         //descriptor contains the error code
+        module_put(THIS_MODULE);
         return descriptor;
     }
     tag_service = tag_table[descriptor];
@@ -171,14 +171,12 @@ asmlinkage int sys_tag_send(int tag, int level, char* buffer, size_t size)
     //in the requested tag service & tag level
     if((ret = send_data(tag_service, level, buffer, size)) != 0){
         tag_error(ret, TAG_SEND);
+        check_input_data_tail(descriptor);
+        module_put(THIS_MODULE);
         return ret;
     }
 
-    if(check_input_data_tail(descriptor) != 0){
-        printk(KERN_ERR "%s: check_input_data_tail is non zero", TAG_SEND);
-        return UNEXPECTED;
-    }
-
+    check_input_data_tail(descriptor);
     module_put(THIS_MODULE);
     return 0;
 }

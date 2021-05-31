@@ -248,6 +248,8 @@ int receive(struct tag_levels_list *rcvng_level)
             printk(KERN_DEBUG "%s: New data has arrived !", TAG_RECEIVE);
         return 0;
     }else if(old_awake != tag_serv->awake_all){
+        AUDIT
+            printk(KERN_DEBUG "%s: Awaken !", TAG_RECEIVE);
         return THREAD_WOKE_UP;
     }else{
         //or timer if WAIT_EV_TO is defined
@@ -267,21 +269,23 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
     struct tag_levels_list *rcvng_level;
     struct tag_service *tag_service;
 
-    
+
     if(try_module_get(THIS_MODULE) == 0){
 		return MOD_INUSE;
 	}
 
     if((descriptor = check_input_data_head(tag)) < 0){
         //descriptor contains the error code
+        module_put(THIS_MODULE);
         return descriptor;
     }
     tag_service = tag_table[descriptor];
 
     //putting metadata into the right place
     if((rcvng_level = put_receive_metadata(tag_service, level, buffer, size)) == NULL){
-        down(&semaphores[descriptor]);
         tag_error(PUT_META_ERR, TAG_RECEIVE);
+        check_input_data_tail(descriptor);
+        module_put(THIS_MODULE);
         return PUT_META_ERR;
     }
     AUDIT
@@ -297,19 +301,13 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
     //AND if this thread was the last listening for data on this levels
     //do the appropiate cleanup operations
     if((ret = clean_up_metadata(tag_service, rcvng_level)) != 0){
-        down(&semaphores[descriptor]);
         tag_error(ret, TAG_RECEIVE);
-        return ret;
     }
 
     AUDIT
         printk(KERN_DEBUG "%s: Metadata cleaned-up", TAG_RECEIVE);
 
-    if(check_input_data_tail(descriptor) != 0){
-        printk(KERN_ERR "%s: check_input_data_tail is not zero", TAG_SEND);
-        return UNEXPECTED;
-    }
-
+    check_input_data_tail(descriptor);
     module_put(THIS_MODULE);
     return ret_rcv;
 }

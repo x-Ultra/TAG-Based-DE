@@ -53,7 +53,7 @@ int main(int argc, char **argv)
 	if(f == 0){
 		sleep(1);
 		printf("Sender activated\n");
-		ret = tag_send(desc1, 1, "ciao", 4);
+		ret = tag_send(desc1, 1, "ciao", 5);
 		printf("Sender returned: %d\n", ret);
 		return 0;
 	}

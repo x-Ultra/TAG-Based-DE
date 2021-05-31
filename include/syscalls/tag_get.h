@@ -219,7 +219,7 @@ asmlinkage int sys_tag_get(int key, int command, int permission)
     //key reserved
     if(key == -1){
         tag_error(KEY_RESERVED, TAG_GET);
-        //module_put(THIS_MODULE);
+        module_put(THIS_MODULE);
         return KEY_RESERVED;
     }
 
