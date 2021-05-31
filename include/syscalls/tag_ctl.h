@@ -103,7 +103,7 @@ int awake_all(int tag)
     tag_service = tag_table[descriptor];
 
     AUDIT
-        printk(KERN_DEBUG "%s: Awaking on %d", TAG_CTL, descriptor);
+        printk(KERN_DEBUG "%s: Awaking on %d, old_awake: %d", TAG_CTL, descriptor, tag_service->awake_all);
 
     //No need to acquire the spinlock, semaphore acquired with check_input_data_tail
     //will prevent the remotion of this level
@@ -112,6 +112,9 @@ int awake_all(int tag)
     }
     tag_service->awake_all += 1;
     wake_up(&receiving_queue);
+
+    AUDIT
+        printk(KERN_DEBUG "%s: Awaking done, new awake_all: %d", TAG_CTL, tag_service->awake_all);
 
     check_input_data_tail(descriptor);
     return 0;

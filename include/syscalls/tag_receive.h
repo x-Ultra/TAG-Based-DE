@@ -218,16 +218,15 @@ int clean_up_metadata(struct tag_service *tag_service, struct tag_levels_list *r
 
 
 //function that uses a sleep wait condition queue
-int receive(struct tag_levels_list *rcvng_level)
+int receive(struct tag_levels_list *rcvng_level, struct tag_service *tag_serv)
 {
     //form now on, the thread will wake up if
     //1. he's hit by a signal
     //2. he's woken up by tag_ctl
     //3. some data arrives
     int old_data, old_awake;
-    struct tag_service *tag_serv;
-
-    tag_serv = container_of(&rcvng_level, struct tag_service, tag_levels);
+    //did not work
+    //tag_serv = container_of(&rcvng_level, struct tag_service, tag_levels);
     old_awake = tag_serv->awake_all;
 
     //spinlock not needed. We do not need to keep track of messages order
@@ -241,6 +240,9 @@ int receive(struct tag_levels_list *rcvng_level)
     #else
     wait_event_interruptible(receiving_queue, (old_data != rcvng_level->level.data_received) || (old_awake != tag_serv->awake_all));
     #endif
+
+    AUDIT
+        printk(KERN_DEBUG "%s: old_data %d, new_data %d, old_awake %d, new_awake %d !", TAG_RECEIVE, old_data, rcvng_level->level.data_received, old_awake, tag_serv->awake_all);
 
     //distinguish return codes
     if(old_data != rcvng_level->level.data_received){
@@ -293,7 +295,7 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
 
     //going to sleep (until given coindition is met)
     //the call can fail due to AWAKE ALL ops or signal received
-    if((ret_rcv = receive(rcvng_level)) != 0){
+    if((ret_rcv = receive(rcvng_level, tag_service)) != 0){
         tag_error(ret_rcv, TAG_RECEIVE);
     }
 
