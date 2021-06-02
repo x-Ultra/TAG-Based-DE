@@ -33,6 +33,7 @@ unsigned int positron = 1;
 #define MOD_INUSE -3001
 #define ERR_KMALLOC -3002
 #define UNEXPECTED -3003
+#define ERR_SPRINTF -3004
 
 //common errors on syscalls
 #define INVALID_CMD -1

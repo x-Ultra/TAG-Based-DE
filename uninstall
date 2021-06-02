@@ -7,3 +7,5 @@ dmesg | tail | grep "TAG Service"
 cd SyscallAdderV2
 ./uninstall ~
 cd ..
+cd test/system && make clean
+rm -rf TAG-service-stat

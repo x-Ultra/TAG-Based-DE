@@ -30,6 +30,12 @@
 #include <linux/tty.h>
 //usedto acquire TCB from pid
 #include <linux/pid.h>
+//driver registration
+#include <linux/fs.h>
+//strlen usage
+#include <linux/string.h>
+//vmalloc used for driver operations
+#include <linux/vmalloc.h>
 
 #include "include/architecture.h"
 #include "include/security.h"
@@ -38,6 +44,7 @@
 #include "include/syscalls/tag_ctl.h"
 #include "include/syscalls/tag_receive.h"
 #include "include/syscalls/tag_send.h"
+#include "include/tag_driver.h"
 
 #define MODNAME "TAG Service"
 
@@ -51,6 +58,7 @@ extern int syscall_adder(void* syscall_addr, char* syscall_name, int syscall_nam
 
 //syscall indexes in syscall table
 int tag_get_indx, tag_ctl_indx, tag_send_indx, tag_receive_indx;
+static int Major;
 
 static int __init install(void)
 {
@@ -107,6 +115,22 @@ static int __init install(void)
 		return -1;
 	}
 
+	//defining once and for all the template stat line len
+	STAT_LINE_LEN = strlen(DRIVER_STAT_LINE);
+	if((tag_service_stat = vmalloc(PAGE_SIZE*STAT_PAGES)) == NULL){
+		printk("%s: vmalloc failed", MODNAME);
+  	  	return -1;
+	}
+
+	//char device registration
+	Major = register_chrdev(0, DEVICE_NAME, &fops);
+	printk(KERN_DEBUG "%s: Major for device: %d", MODNAME, Major);
+
+	if(Major < 0) {
+	   printk("%s: registering device failed", MODNAME);
+	   return Major;
+	}
+
 	return 0;
 }
 
@@ -138,6 +162,12 @@ static void __exit uninstall(void)
 		ret = -1;
 	}
 
+	unregister_chrdev(Major, DEVICE_NAME);
+
+	if(tag_service_stat != NULL)
+		vfree(tag_service_stat);
+
+	vfree(tag_service_stat);
 
 	if(ret != -1){
 		printk(KERN_DEBUG "%s: All systemcalls has been removed correctly", MODNAME);
