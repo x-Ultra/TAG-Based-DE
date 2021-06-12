@@ -115,12 +115,16 @@ static int __init install(void)
 		return -1;
 	}
 
+	//number of starting page size kept for tag service stat message
+	starting_pages = STAT_PAGES;
+
 	//defining once and for all the template stat line len
-	STAT_LINE_LEN = strlen(DRIVER_STAT_LINE);
+	STAT_LINE_LEN = strlen(DRIVER_STAT_LINE)+1;
 	if((tag_service_stat = vmalloc(PAGE_SIZE*STAT_PAGES)) == NULL){
 		printk("%s: vmalloc failed", MODNAME);
   	  	return -1;
 	}
+	TIT_STAT_LINE_LEN = strlen(DRIVER_STAT_TIT)+1;
 
 	//char device registration
 	Major = register_chrdev(0, DEVICE_NAME, &fops);
@@ -136,10 +140,32 @@ static int __init install(void)
 
 static void __exit uninstall(void)
 {
-	int ret = 0;
+	int ret = 0, i;
 
-	//TODO, if tag table not empty, fail
-	//
+	//if tag table is still used, abort remotion
+	for(i = 0; i < TBL_ENTRIES_NUM; i++){
+		if(!down_trylock(&semaphores[i])){
+	        //if i am able to acquire 2 time the semaphore,
+	        //some thread has the tag service.
+	        if(!down_trylock(&semaphores[i])){
+	            up(&semaphores[i]);
+	            up(&semaphores[i]);
+	            printk(KERN_ERR "%s: There are still threads on descriptor %d, try later", MODNAME, i);
+				ret = -1;
+				continue;
+	        }
+	    }else{
+	        //if i am not able to acquire the semaphore for the first time,
+	        //another removing ops for this service has been called, wait for it
+	        down(&semaphores[i]);
+	    }
+		if(tag_table[i]->tag_levels != NULL){
+			printk(KERN_ERR "%s: There are still threads on descriptor %d, try later", MODNAME, i);
+			ret = -1;
+		}
+	}
+	if(ret == -1)
+		return;
 
 	//removing systemcalls
 	if(syscall_remover(tag_get_indx) == -1){
@@ -174,7 +200,6 @@ static void __exit uninstall(void)
 	}else{
 		printk(KERN_ALERT "%s: Some systemcalls has not been removed", MODNAME);
 	}
-
 
 }
 

@@ -8,4 +8,5 @@ cd SyscallAdderV2
 ./uninstall ~
 cd ..
 cd test/system && make clean
-rm -rf TAG-service-stat
+cd ../../
+sudo rm -rf TAG-service-stat

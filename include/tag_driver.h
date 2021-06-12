@@ -1,24 +1,26 @@
 #define DRIVER_STAT_TIT         "TAG-key  TAG-creator  TAG-level  Waiting-threads\n"
 #define DRIVER_STAT_LINE        "   %d       %d          %d             %d      \n"
 #define DRIVER_STAT_LINE_EMPTY  "   %d       %d          --             %d      \n"
-#define STAT_LINES 100
 #define DEVICE_NAME "TAG Driver"
 #define MIN_PAGES 1
 
 //variable used to adapt log size to the tag_service usage
-unsigned short increment = 0;
-unsigned short decrement = 0;
+short increment = 0;
+short decrement = 0;
 //one increment reached the threeshold vaue, a new page will be
 //allocated to contain tad service status messages
 int threeshold = 10;
 int STAT_PAGES = 3;
+//initialized at STAT_PAGES
+int starting_pages;
 
 //tag service status message (and size)
-ssize_t info_mess_size;
+int info_mess_size;
 //initialized at installation
 char *tag_service_stat;
 char *tag_service_stat_tmp;
 int STAT_LINE_LEN;
+int TIT_STAT_LINE_LEN;
 
 //mutex used to enanche performance (paradoxically)
 DEFINE_MUTEX(driver_mtx);
@@ -40,6 +42,9 @@ int compose_statline(int key, int pid, int lvl, int w_thr, int offset)
 {
     int ret;
 
+    AUDIT
+        printk(KERN_DEBUG "%s: compose stat called", DEVICE_NAME);
+
     //if the formatted text wuold overflow...
     if(offset + STAT_LINE_LEN + 10 > STAT_PAGES*PAGE_SIZE){
         STAT_PAGES += 1;
@@ -58,7 +63,7 @@ int compose_statline(int key, int pid, int lvl, int w_thr, int offset)
     }
 
     if(lvl == -1){
-        ret = snprintf(tag_service_stat+offset, STAT_LINE_LEN, DRIVER_STAT_LINE_EMPTY, key, pid, w_thr);
+        ret = snprintf(tag_service_stat+offset, STAT_LINE_LEN+1, DRIVER_STAT_LINE_EMPTY, key, pid, w_thr);
     }else{
         ret = snprintf(tag_service_stat+offset, STAT_LINE_LEN, DRIVER_STAT_LINE, key, pid, lvl, w_thr);
     }
@@ -67,31 +72,53 @@ int compose_statline(int key, int pid, int lvl, int w_thr, int offset)
         return ERR_SPRINTF;
     }
 
+    AUDIT
+        printk(KERN_DEBUG "%s: compose  line ret: %d", DEVICE_NAME, ret);
+
     return ret;
 }
 
 
-int update_tag_service_message(void)
+int update_tag_service_stat(void)
 {
     int i, ret = 0;
     struct tag_levels_list *cur_levels;
-    int charcount = 0;
-    int starting_pages = STAT_PAGES;
+    int charcount = TIT_STAT_LINE_LEN;
 
-    //TODO add '\0' at the end of the messages
+    //TODO handle spinlocks
+
+    //copying the tile
+    memcpy(tag_service_stat, DRIVER_STAT_TIT, TIT_STAT_LINE_LEN);
 
     //function that scans the WHOLE tag Table
     for(i = 0; i < TBL_ENTRIES_NUM; i++){
 
+        //same logic of 'check_input_data_head'
+        if(down_trylock(&semaphores[i])){
+            //resetting the value to 0
+            down(&semaphores[i]);
+            tag_error(BEING_DELETED, TAG_DRIVER);
+            return BEING_DELETED;
+        }
+        //if w're here the remover ops has not started.
+        //Resetting value to previous +1
+        up(&semaphores[i]);
+        up(&semaphores[i]);
+
         if(tag_table[i] == NULL){
+            down(&semaphores[i]);
             continue;
         }
 
         //scanning levels information
         cur_levels = tag_table[i]->tag_levels;
+        spin_lock(&tag_table[i]->lvl_spin);
         while(1){
             if(cur_levels == NULL){
-                if((ret = compose_statline(tag_table[i]->key, tag_table[i]->creator_pid, -1, 0, charcount)) != 0){
+                //a penging opened tag service, but unused...
+                if((ret = compose_statline(tag_table[i]->key, tag_table[i]->creator_pid, -1, 0, charcount)) < 0){
+                    spin_unlock(&(tag_table[i]->lvl_spin));
+                    down(&semaphores[i]);
                     return ret;
                 }
                 charcount += ret;
@@ -99,22 +126,29 @@ int update_tag_service_message(void)
             }
 
             //per each level store informations
-            if((ret = compose_statline(tag_table[i]->key, tag_table[i]->creator_pid, cur_levels->level_num, cur_levels->level.waiting_threads, charcount)) != 0){
+            if((ret = compose_statline(tag_table[i]->key, tag_table[i]->creator_pid, cur_levels->level_num, cur_levels->level.waiting_threads, charcount)) < 0){
+                spin_unlock(&(tag_table[i]->lvl_spin));
+                down(&semaphores[i]);
                 return ret;
             }
             charcount += ret;
 
             cur_levels = cur_levels->next;
-            if(cur_levels == NULL)
+            if(cur_levels == NULL){
                 break;
+            }
         }
+        spin_unlock(&(tag_table[i]->lvl_spin));
+        down(&semaphores[i]);
     }
 
     //terminating the message
     tag_service_stat[charcount] = '\0';
+    info_mess_size = charcount;
 
+    //SELF-ADJUSTING
     //have we used more or less than STAT_PAGES ? -> lets adapt
-    if(STAT_PAGES > starting_pages){
+    if(info_mess_size > starting_pages*PAGE_SIZE){
         increment += 1;
         decrement -= 1;
     }else{
@@ -125,14 +159,22 @@ int update_tag_service_message(void)
     //dynamic adaptation the STAT_PAGES
     if(increment > threeshold){
         STAT_PAGES += 1;
+        starting_pages = STAT_PAGES;
+        increment = 0;
+        decrement = 0;
+        printk(KERN_NOTICE "%s: Self-Adjusting (increasing) stat pages at %d", DEVICE_NAME, STAT_PAGES);
     }else if(decrement > threeshold && STAT_PAGES > MIN_PAGES){
         STAT_PAGES -= 1;
+        starting_pages = STAT_PAGES;
+        increment = 0;
+        decrement = 0;
+        printk(KERN_NOTICE "%s: Self-Adjusting (decreasing) stat pages at %d", DEVICE_NAME, STAT_PAGES);
     }
 
     return 0;
 }
 
-static ssize_t tag_service_info(struct file *filp, char *buff, size_t len, loff_t *off)
+static ssize_t get_tagservice_stat(struct file *filp, char *buff, size_t len, loff_t *off)
 {
 
     //if the mutex is locked, there is no need to create a new message  log
@@ -141,22 +183,29 @@ static ssize_t tag_service_info(struct file *filp, char *buff, size_t len, loff_
     if(!mutex_trylock(&driver_mtx)){
         mutex_lock(&driver_mtx);
     }else{
-        if(!update_tag_service_message()){
+        if(update_tag_service_stat() < 0){
             printk(KERN_ERR "%s: Error while updating status message", DEVICE_NAME);
+            mutex_unlock(&driver_mtx);
             return -1;
         }
+        mutex_unlock(&driver_mtx);
     }
+
+    AUDIT
+        printk(KERN_DEBUG "%s: called read: %d", DEVICE_NAME, info_mess_size);
 
     /* If position is behind the end of a file we have nothing to read */
     if(*off >= info_mess_size){
-        mutex_unlock(&driver_mtx);
         return 0;
     }
     /* If a user tries to read more than we have, read only as many bytes as we have */
-    if(*off + len > info_mess_size)
+    if(*off + len > info_mess_size){
         len = info_mess_size - *off;
-    if(copy_to_user(buff, tag_service_stat + *off, len) != 0 )
+    }
+
+    if(copy_to_user(buff, tag_service_stat + *off, len) != 0 ){
         return -EFAULT;
+    }
     /* Move reading position */
     *off += len;
 
@@ -167,7 +216,7 @@ static ssize_t tag_service_info(struct file *filp, char *buff, size_t len, loff_
 //Driver ops
 static struct file_operations fops = {
   .owner = THIS_MODULE,//do not forget this
-  .read = tag_service_info,
+  .read = get_tagservice_stat,
   .open =  tag_open,
   .release = tag_release
 };
