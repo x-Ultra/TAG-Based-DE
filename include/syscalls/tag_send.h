@@ -178,6 +178,8 @@ asmlinkage int sys_tag_send(int tag, int level, char* buffer, size_t size)
 
     check_input_data_tail(descriptor);
     module_put(THIS_MODULE);
+    //resetting "unused timer"
+    unused_tag_services[descriptor] = UNUSED_SECS;
     return 0;
 }
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)

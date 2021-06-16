@@ -76,7 +76,8 @@ int remove_tag_service(int descriptor)
     }
 
     //freeing data structures allocated in tag get
-    kfree(tag_service->tag_levels);
+    if(tag_service->tag_levels != NULL)
+        kfree(tag_service->tag_levels);
     kfree(tag_service);
     tag_table[descriptor] = NULL;
 

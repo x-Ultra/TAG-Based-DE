@@ -62,3 +62,8 @@ struct semaphore semaphores[TBL_ENTRIES_NUM] __attribute__((aligned(64)));
 DEFINE_SPINLOCK(tag_tbl_spin);
 int used_keys[TBL_ENTRIES_NUM];
 int num_used_keys = 0;
+
+//stuff used by cleaner thread
+DECLARE_WAIT_QUEUE_HEAD(cleaner_wq);
+//no syncronizaiton here, no need to align (to avoid fcs)
+short unused_tag_services[TBL_ENTRIES_NUM] = { [0 ... TBL_ENTRIES_NUM-1] = UNUSED_SECS};

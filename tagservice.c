@@ -36,6 +36,8 @@
 #include <linux/string.h>
 //vmalloc used for driver operations
 #include <linux/vmalloc.h>
+//kthread run used to create and run the cleaner
+#include <linux/kthread.h>
 
 #include "include/architecture.h"
 #include "include/security.h"
@@ -45,6 +47,7 @@
 #include "include/syscalls/tag_receive.h"
 #include "include/syscalls/tag_send.h"
 #include "include/tag_driver.h"
+#include "include/tag_service_cleaner.h"
 
 #define MODNAME "TAG Service"
 
@@ -60,6 +63,7 @@ extern int syscall_adder(void* syscall_addr, char* syscall_name, int syscall_nam
 int tag_get_indx, tag_ctl_indx, tag_send_indx, tag_receive_indx;
 static int Major;
 dev_t devNo;
+struct task_struct *cleaner_tcb = NULL;
 
 static int __init install(void)
 {
@@ -91,45 +95,72 @@ static int __init install(void)
         positron |= positron << 1;
     }
 
-	//adding Systemcalls
-	printk(KERN_DEBUG "%s: Adding %s", MODNAME, "tag_get");
-	if((tag_get_indx = syscall_adder((void *)sys_tag_get, "tag_get", 7, 3)) == -1){
-		printk(KERN_ERR "%s: Unable to add tag_get", MODNAME);
-		return -1;
-	}
-
-	printk(KERN_DEBUG "%s: Adding %s", MODNAME, "tag_ctl");
-	if((tag_ctl_indx = syscall_adder((void *)sys_tag_ctl, "tag_ctl", 7, 2)) == -1){
-		printk(KERN_ERR "%s: Unable to add tag_ctl", MODNAME);
-		return -1;
-	}
-
-	printk(KERN_DEBUG "%s: Adding %s", MODNAME, "tag_send");
-	if((tag_send_indx = syscall_adder((void *)sys_tag_send, "tag_send", 8, 4)) == -1){
-		printk(KERN_ERR "%s: Unable to add tag_send", MODNAME);
-		return -1;
-	}
-
-	printk(KERN_DEBUG "%s: Adding %s", MODNAME, "tag_receive");
-	if((tag_receive_indx = syscall_adder((void *)sys_tag_receive, "tag_receive", 11, 4)) == -1){
-		printk(KERN_ERR "%s: Unable to add tag_receive", MODNAME);
-		return -1;
-	}
-
 	//number of starting page size kept for tag service stat message
 	starting_pages = STAT_PAGES;
 
 	//defining once and for all the template stat line len
 	STAT_LINE_LEN = strlen(DRIVER_STAT_LINE)+1;
 	if((tag_service_stat = vmalloc(PAGE_SIZE*STAT_PAGES)) == NULL){
-		printk("%s: vmalloc failed", MODNAME);
+		printk(KERN_ERR "%s: vmalloc failed", MODNAME);
   	  	return -1;
 	}
 	TIT_STAT_LINE_LEN = strlen(DRIVER_STAT_TIT)+1;
 
 	//char device registration
 	Major = register_chrdev(0, DEVICE_NAME, &fops);
+	if(Major < 0){
+		printk(KERN_ERR "%s: Chardevice registration failed", MODNAME);
+  	  	return -1;
+	}
 	printk(KERN_NOTICE "%s: Major for device: %d", MODNAME, Major);
+
+	//creating AND starting the cleaner
+	cleaner_tcb = kthread_run(tag_service_cleaner, NULL, "tag_cleaner");
+	if(!cleaner_tcb){
+		printk(KERN_ERR "%s: Unable to create cleaner", MODNAME);
+		vfree(tag_service_stat);
+		unregister_chrdev(Major, DEVICE_NAME);
+		return -1;
+	}
+
+	//adding Systemcalls
+	printk(KERN_DEBUG "%s: Adding %s", MODNAME, "tag_get");
+	if((tag_get_indx = syscall_adder((void *)sys_tag_get, "tag_get", 7, 3)) == -1){
+		printk(KERN_ERR "%s: Unable to add tag_get", MODNAME);
+		vfree(tag_service_stat);
+		unregister_chrdev(Major, DEVICE_NAME);
+		return -1;
+	}
+
+	printk(KERN_DEBUG "%s: Adding %s", MODNAME, "tag_ctl");
+	if((tag_ctl_indx = syscall_adder((void *)sys_tag_ctl, "tag_ctl", 7, 2)) == -1){
+		printk(KERN_ERR "%s: Unable to add tag_ctl", MODNAME);
+		syscall_remover(tag_get_indx);
+		vfree(tag_service_stat);
+		unregister_chrdev(Major, DEVICE_NAME);
+		return -1;
+	}
+
+	printk(KERN_DEBUG "%s: Adding %s", MODNAME, "tag_send");
+	if((tag_send_indx = syscall_adder((void *)sys_tag_send, "tag_send", 8, 4)) == -1){
+		printk(KERN_ERR "%s: Unable to add tag_send", MODNAME);
+		syscall_remover(tag_get_indx);
+		syscall_remover(tag_ctl_indx);
+		vfree(tag_service_stat);
+		unregister_chrdev(Major, DEVICE_NAME);
+		return -1;
+	}
+
+	printk(KERN_DEBUG "%s: Adding %s", MODNAME, "tag_receive");
+	if((tag_receive_indx = syscall_adder((void *)sys_tag_receive, "tag_receive", 11, 4)) == -1){
+		printk(KERN_ERR "%s: Unable to add tag_receive", MODNAME);
+		syscall_remover(tag_get_indx);
+		syscall_remover(tag_ctl_indx);
+		syscall_remover(tag_send_indx);
+		vfree(tag_service_stat);
+		unregister_chrdev(Major, DEVICE_NAME);
+		return -1;
+	}
 
 
 	printk(KERN_INFO "%s: Module inserted correctly", MODNAME);
@@ -169,6 +200,10 @@ static void __exit uninstall(void)
 	}
 	if(ret == -1)
 		return;
+
+	//killing the cleaner
+	cleaner_stop = 1;
+	wake_up(&cleaner_wq);
 
 	//removing systemcalls
 	if(syscall_remover(tag_get_indx) == -1){
