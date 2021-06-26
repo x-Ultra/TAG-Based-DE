@@ -5,6 +5,11 @@ unsigned long PRIV_PWD_BITS;
 unsigned int positron = 1;
 #define RW_BUFFER_SIZE 4096
 
+//Variable used by cleaner
+#define CLEANER_SLEEP_SEC 10
+#define UNUSED_SECS 60
+#define CLEANER "TAG-Cleaner"
+
 //prsmission types
 #define PERMISSION_USER 0
 #define PERMISSION_ANY 1
