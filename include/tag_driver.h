@@ -180,6 +180,7 @@ static ssize_t get_tagservice_stat(struct file *filp, char *buff, size_t len, lo
     //if the mutex is locked, there is no need to create a new message  log
     //because probably nothing is changed from the lock to the release.
     //This shouldincrease performances and decrase memory accesses
+    //utex_trylock(&driver_mtx) = 0 -> locked
     if(!mutex_trylock(&driver_mtx)){
         mutex_lock(&driver_mtx);
     }else{

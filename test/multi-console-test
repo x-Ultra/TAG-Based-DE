@@ -1,0 +1,9 @@
+#! /bin/bash
+
+if [ ${#COLORTERM} < 0 ]:
+then
+    terminal = $TERM
+fi
+
+$terminal -c "system/monitoring"
+$terminal system/tag_receive 10

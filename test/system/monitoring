@@ -1,0 +1,14 @@
+#! /bin/bash
+
+#Simple script that uses the driver to show the
+#status of the TAG service
+
+let i=0
+while :
+do
+    echo -e "\033[1;31mMonitoring... ($i seconds elapsed)\033[0m\n"
+    cat ../../TAG-service-stat
+    sleep 1
+    clear
+    let i+=1
+done

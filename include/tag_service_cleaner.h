@@ -3,7 +3,7 @@ int cleaner_stop = 0;
 //The cleaner is a kerner thread that
 int tag_service_cleaner(void *unused)
 {
-    int i, the_key;
+    int i, j, the_key;
 
     while(1){
         //Go to sleep using contition queue on cleaner_data
@@ -30,7 +30,7 @@ int tag_service_cleaner(void *unused)
                 if(unused_tag_services[i] <= 0){
                     //removing
                     AUDIT
-                        printk(KERN_DEBUG "%s: Semaphore count %u, in %d", CLEANER, semaphores[i].count, i);
+                        printk(KERN_DEBUG "%s: Semaphore count %u (== 0?), in %d", CLEANER, semaphores[i].count, i);
                     if(!down_trylock(&semaphores[i])){
                         //if i am able to acquire 2 time the semaphore,
                         //some thread has the tag service.
@@ -38,10 +38,10 @@ int tag_service_cleaner(void *unused)
                             up(&semaphores[i]);
                             up(&semaphores[i]);
                             //before continuing, it may happen that a thread
-                            //cas killed befor incresing sem count...
+                            //was killed before decreasing sem count...
                             //So if the unused counter is negative NO threads has
                             //accessed the sem counter for UNUSED_SECS.
-                            //Resetting that value to zero
+                            //Resetting that value to one
                             semaphores[i].count = 1;
                             continue;
                         }
@@ -57,10 +57,10 @@ int tag_service_cleaner(void *unused)
                     //checking that key is in used_keys
                     if(tag_table[i]->key != TAG_IPC_PRIVATE){
                         the_key = tag_table[i]->key;
-                        for(i = 0; i < TBL_ENTRIES_NUM; i++){
-                            if(used_keys[i] == the_key){
+                        for(j = 0; j < TBL_ENTRIES_NUM; j++){
+                            if(used_keys[j] == the_key){
                                 //removing could be performed
-                                used_keys[i] = used_keys[num_used_keys-1];
+                                used_keys[j] = used_keys[num_used_keys-1];
                                 used_keys[num_used_keys-1] = -1;
                                 num_used_keys -= 1;
                                 break;
@@ -76,9 +76,10 @@ int tag_service_cleaner(void *unused)
 
                     printk(KERN_NOTICE "%s: Cleaner has removed tag_service %d", CLEANER, i);
 
+                    //done
+                    printk(KERN_NOTICE "%s: Cleaner done, sem count %d", CLEANER, semaphores[i].count);
+                    up(&semaphores[i]);
                 }
-                //done
-                up(&semaphores[i]);
             }
         }
 
