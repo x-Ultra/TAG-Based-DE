@@ -1,9 +1,39 @@
 #! /bin/bash
+clear
+while :
+do
+    echo -e "\e[93mTest Control Pannel\e[39m\n"
 
-if [ ${#COLORTERM} < 0 ]:
-then
-    terminal = $TERM
-fi
+    echo -e "1] Create Private TAG Service"
+    # (Launch a program that creates x receiver and y sender)
+    echo -e "2] Create TAG Service"
+    echo -e "3] Spawn Receiver"
+    echo -e "4] Spawn Sender"
+    echo -e "5] Brute Force Test"
+    echo -e "6] Automatic Send-Receive Test"
+    echo -e "7] Launch Monitor (TAG Driver)"
 
-$terminal -c "system/monitoring"
-$terminal system/tag_receive 10
+    read -p "Your choice: " choice
+
+    case $choice in
+        1) xterm -e ls &
+        ;;
+        2) xterm -e ls &
+        ;;
+        3) xterm -e ls &
+        ;;
+        4) xterm -e ls &
+        ;;
+        5) xterm -e "system/brute_force" &
+        ;;
+        6) read -p "Num Receiving threads: " num
+           xterm -e "system/tag_receive" $num &
+        ;;
+        7) xterm -e "cd ./system && ./monitoring" &
+	    ;;
+        *) echo "What?"
+        ;;
+    esac
+
+    clear
+done
