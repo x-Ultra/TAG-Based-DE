@@ -17,6 +17,9 @@ make
 sudo insmod tagservice.ko
 dmesg | tail | grep "TAG Service"
 echo '#include "'$HOME'/custom_syscall_macros.h"' > test/macro_file_path.h
+cd test/unit
+make
+cd ../../
 cd test/system
 make
 cd ../../

@@ -2,7 +2,7 @@
 clear
 while :
 do
-    echo -e "\e[93mTest Control Pannel\e[39m\n"
+    echo -e "\e[93mTest Control Pannel\e[39m\n\n"
 
     echo -e "1] Create Private TAG Service"
     # (Launch a program that creates x receiver and y sender)
@@ -12,17 +12,25 @@ do
     echo -e "5] Brute Force Test"
     echo -e "6] Automatic Send-Receive Test"
     echo -e "7] Launch Monitor (TAG Driver)"
+    echo -e "8] Exit"
 
     read -p "Your choice: " choice
 
     case $choice in
         1) xterm -e ls &
         ;;
-        2) xterm -e ls &
+        2) read -p "Insert Key: " key
+           read -p "Permission (user=0, any=1): " perm
+           unit/create_tag $perm $key
+           sleep 1
         ;;
-        3) xterm -e ls &
+        3) read -p "Insert Descriptor: " desc
+           read -p "Insert Level: " lvl
+           xterm -e unit/spawn_receiver $desc $lvl &
         ;;
-        4) xterm -e ls &
+        4) read -p "Insert Descriptor: " desc
+           read -p "Insert Level: " lvl
+           xterm -e unit/spawn_sender $desc $lvl &
         ;;
         5) xterm -e "system/brute_force" &
         ;;
@@ -30,6 +38,8 @@ do
            xterm -e "system/tag_receive" $num &
         ;;
         7) xterm -e "cd ./system && ./monitoring" &
+	    ;;
+        8) exit
 	    ;;
         *) echo "What?"
         ;;
