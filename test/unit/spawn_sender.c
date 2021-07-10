@@ -13,24 +13,32 @@
 void main(int argc, char **argv)
 {
 
-	int desc, ret, level;
-    char *buffer = (char *)malloc(RW_BUFFER_SIZE);
+	int key, ret, level, desc;
+    char *buffer = (char *)malloc(RW_BUFFER_SIZE-1);
 
     if(argc != 3){
         printf("UsageT: ./spawn_sender <tag descriptor> <tag level>\n");
         return;
     }
 
-	desc = atoi(argv[1]);
+	key = atoi(argv[1]);
     level = atoi(argv[2]);
+
+	//permission field is ignored if cmd=CMD_OPEN
+	desc = tag_get(key, CMD_OPEN, 13221);
+	if(desc < 0){
+		printf("Error in opening The Tag service to the key provided\n");
+		sleep(1);
+		return;
+	}
 
     while(1){
 
         printf("Type what do you want to send: ");
-        gets(buffer);
+        fgets(buffer, RW_BUFFER_SIZE-1, stdin);
         printf("Sending %s on descriptor %d, level %d\n", buffer, desc, level);
         sleep(1);
-        ret = tag_send(desc, level, buffer, strlen(buffer));
+        ret = tag_send(desc, level, buffer, strlen(buffer)+1);
 
         if(ret >= 0){
             printf("Sent !\n");

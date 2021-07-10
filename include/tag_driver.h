@@ -72,9 +72,6 @@ int compose_statline(int key, int pid, int lvl, int w_thr, int offset)
         return ERR_SPRINTF;
     }
 
-    AUDIT
-        printk(KERN_DEBUG "%s: compose  line ret: %d", DEVICE_NAME, ret);
-
     return ret;
 }
 
@@ -95,8 +92,6 @@ int update_tag_service_stat(void)
 
         //same logic of 'check_input_data_head'
         if(down_trylock(&semaphores[i])){
-            //resetting the value to 0
-            down(&semaphores[i]);
             tag_error(BEING_DELETED, TAG_DRIVER);
             return BEING_DELETED;
         }
@@ -191,9 +186,6 @@ static ssize_t get_tagservice_stat(struct file *filp, char *buff, size_t len, lo
         }
         mutex_unlock(&driver_mtx);
     }
-
-    AUDIT
-        printk(KERN_DEBUG "%s: called read: %d", DEVICE_NAME, info_mess_size);
 
     /* If position is behind the end of a file we have nothing to read */
     if(*off >= info_mess_size){

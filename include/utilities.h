@@ -62,7 +62,7 @@ void tag_error(int errorcode, char* modname)
             printk(KERN_ALERT "%s: Unexpected error, check previous message", modname);
             break;
         case BUFF_TOO_LARGE:
-            printk(KERN_ERR "%s: buffer size is too large", TAG_SEND);
+            printk(KERN_ERR "%s: buffer size is too large", modname);
             break;
         case ERR_SPRINTF:
             printk(KERN_ERR "%s: Snprintf failed", modname);
@@ -145,8 +145,6 @@ int check_input_data_head(int tag){
     //this means that the tag service is being removed...
     //nothing to do here.
     if(down_trylock(&semaphores[descriptor])){
-        //resetting the value to 0
-        down(&semaphores[descriptor]);
         tag_error(BEING_DELETED, TAG_SEND);
         return BEING_DELETED;
     }
@@ -156,8 +154,6 @@ int check_input_data_head(int tag){
     up(&semaphores[descriptor]);
     AUDIT
         printk(KERN_DEBUG "%s: Semaphore count %u", TAG_SEND, semaphores[descriptor].count);
-
-    //TODO postponing cleaner timer to corresponding descriptor
 
     //from here in, the cleaner wont wake up for CLEANER_SLEEP seconds
     //on this tag table entry

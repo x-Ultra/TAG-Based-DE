@@ -30,18 +30,18 @@ int tag_service_cleaner(void *unused)
                 if(unused_tag_services[i] <= 0){
                     //removing
                     AUDIT
-                        printk(KERN_DEBUG "%s: Semaphore count %u (== 0?), in %d", CLEANER, semaphores[i].count, i);
+                        printk(KERN_DEBUG "%s: Semaphore count %u, in %d", CLEANER, semaphores[i].count, i);
                     if(!down_trylock(&semaphores[i])){
                         //if i am able to acquire 2 time the semaphore,
                         //some thread has the tag service.
                         if(!down_trylock(&semaphores[i])){
-                            up(&semaphores[i]);
-                            up(&semaphores[i]);
                             //before continuing, it may happen that a thread
                             //was killed before decreasing sem count...
                             //So if the unused counter is negative NO threads has
                             //accessed the sem counter for UNUSED_SECS.
                             //Resetting that value to one
+                            AUDIT
+                                printk(KERN_DEBUG "%s: Semaphore count after abort %u, in %d", CLEANER, semaphores[i].count, i);
                             semaphores[i].count = 1;
                             continue;
                         }
@@ -52,6 +52,7 @@ int tag_service_cleaner(void *unused)
                     }
 
                     unused_tag_services[i] = UNUSED_SECS;
+
                     //removing the descriptor on the used_keys in such a way to
                     //have '-1' entries ONLY at the end of the table
                     //checking that key is in used_keys
@@ -77,7 +78,7 @@ int tag_service_cleaner(void *unused)
                     printk(KERN_NOTICE "%s: Cleaner has removed tag_service %d", CLEANER, i);
 
                     //done
-                    printk(KERN_NOTICE "%s: Cleaner done, sem count %d", CLEANER, semaphores[i].count);
+                    printk(KERN_NOTICE "%s: Cleaner done, sem count %d (SHOULD BE 0!)", CLEANER, semaphores[i].count);
                     up(&semaphores[i]);
                 }
             }

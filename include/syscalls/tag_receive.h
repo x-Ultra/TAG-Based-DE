@@ -276,6 +276,12 @@ asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size)
 		return MOD_INUSE;
 	}
 
+    if(size >= RW_BUFFER_SIZE){
+        module_put(THIS_MODULE);
+        tag_error(BUFF_TOO_LARGE, TAG_RECEIVE);
+        return BUFF_TOO_LARGE;
+    }
+
     if((descriptor = check_input_data_head(tag)) < 0){
         //descriptor contains the error code
         module_put(THIS_MODULE);

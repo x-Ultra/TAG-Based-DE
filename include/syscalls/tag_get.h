@@ -158,14 +158,14 @@ int create_tag_service(int key, int permission)
 
 
 //function that fetched the tag tableentry depending on tag Key
-int fetch_tag_desc(int key, int permission)
+int fetch_tag_desc(int key)
 {
     int descriptor;
+    int permission;
     kuid_t EUID;
-    struct tag_service *current_entry = tag_table[0];
+    struct tag_service *current_entry;
 
     printk(KERN_ALERT "%s: Fetching tag called", TAG_GET);
-    return 3;
 
     //Check key type
     if(key == TAG_IPC_PRIVATE)
@@ -183,6 +183,7 @@ int fetch_tag_desc(int key, int permission)
             return KEY_NOT_FOUND;
         }
         if(current_entry->key == key){
+            permission = current_entry->permission;
             break;
         }
         if(descriptor == TBL_ENTRIES_NUM-1){
@@ -226,7 +227,7 @@ asmlinkage int sys_tag_get(int key, int command, int permission)
     //check command type
     switch(command){
         case CMD_OPEN:
-            if((tag_descriptor = fetch_tag_desc(key, permission)) < 0){
+            if((tag_descriptor = fetch_tag_desc(key)) < 0){
                 tag_error(tag_descriptor, TAG_GET);
             }
             break;
