@@ -79,12 +79,13 @@ static int __init install(void)
 	//setting PRIV_TAG_BITS variable value
 	i = 0;
 	temp = TBL_ENTRIES_NUM;
-	while(temp != 0){
+	while(temp > 0){
 		temp = temp >> 1;
 		i += 1;
 	}
 	//PRIV_TAG_BITS has to have a minimum value to prevent easy bruteforce attack
-	PRIV_PWD_BITS = (sizeof(unsigned long)*8 - i);
+	PRIV_PWD_BITS = (sizeof(int)*8 - i);
+	printk(KERN_DEBUG "%s: PRIV_PWD_BITS: %ld", MODNAME, PRIV_PWD_BITS);
 	if(PRIV_PWD_BITS <= 0){
 		printk(KERN_ERR "%s: Invalid value of PRIV_PWD_BITS, please decrease TBL_ENTRIES_NUM value", MODNAME);
 		return -1;

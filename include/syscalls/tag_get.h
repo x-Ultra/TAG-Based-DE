@@ -11,7 +11,7 @@ void retreive_descriptor_pwd(unsigned int merged)
 
     pwd = merged >> (sizeof(unsigned int)*8 - PRIV_PWD_BITS);
     descriptor = (merged << PRIV_PWD_BITS) >> PRIV_PWD_BITS;
-    //printk(KERN_DEBUG "%s: Reteiving info. Descriptor: %d, Pwd: %u", TAG_GET, descriptor, pwd);
+    printk(KERN_DEBUG "%s: Reteiving info. Descriptor: %d, Pwd: %u", TAG_GET, descriptor, pwd);
 }
 
 

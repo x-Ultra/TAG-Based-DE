@@ -10,6 +10,8 @@
 //tag_service constants
 #include "../../include/constants.h"
 
+#define PRIV_PWD_BITS 23
+
 void main(int argc, char **argv)
 {
 
@@ -26,8 +28,9 @@ void main(int argc, char **argv)
     }
     printf("This is the SECRET descriptor available only to the owner and his childs: %d\n", desc);
     int pwd = desc >> (sizeof(unsigned int)*8 - PRIV_PWD_BITS);
-    rdesc = (pwd << (sizeof(unsigned int)*8 - PRIV_PWD_BITS)) | desc;
-    printf("This is the PUBLIC descriptor (try to use it to brute force pwd...): %d\n", rdesc);
+	printf("This is the PASSWORD contained in the descriptor: %d\n", pwd);
+    rdesc = (desc << PRIV_PWD_BITS) >> PRIV_PWD_BITS;
+    printf("This is the PUBLIC descriptor: %d\n", rdesc);
 
     int level = 3;
 
