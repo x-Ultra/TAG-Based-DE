@@ -1,6 +1,8 @@
 #SyscallAdderV2
 SyscallAdderV2/
-include/deleteme.c
+
+#The (old, Fixed) bug trace
+test/bug.txt
 
 # Prerequisites
 *.d

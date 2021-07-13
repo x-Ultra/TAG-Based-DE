@@ -5,7 +5,6 @@ do
     echo -e "\e[1;93mTest Control Pannel\e[39m\n\n"
 
     echo -e "1] Create Private TAG Service"
-    # (Launch a program that creates x receiver and y sender)
     echo -e "2] Create TAG Service"
     echo -e "3] Spawn Receiver"
     echo -e "4] Spawn Sender"

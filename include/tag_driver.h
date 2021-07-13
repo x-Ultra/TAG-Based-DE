@@ -42,9 +42,6 @@ int compose_statline(int key, int pid, int lvl, int w_thr, int offset)
 {
     int ret;
 
-    AUDIT
-        printk(KERN_DEBUG "%s: compose stat called", DEVICE_NAME);
-
     //if the formatted text wuold overflow...
     if(offset + STAT_LINE_LEN + 10 > STAT_PAGES*PAGE_SIZE){
         STAT_PAGES += 1;

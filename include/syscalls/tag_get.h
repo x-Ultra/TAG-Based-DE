@@ -11,7 +11,7 @@ void retreive_descriptor_pwd(unsigned int merged)
 
     pwd = merged >> (sizeof(unsigned int)*8 - PRIV_PWD_BITS);
     descriptor = (merged << PRIV_PWD_BITS) >> PRIV_PWD_BITS;
-    printk(KERN_DEBUG "%s: Reteiving info. Descriptor: %d, Pwd: %u", TAG_GET, descriptor, pwd);
+    //printk(KERN_DEBUG "%s: Reteiving info. Descriptor: %d, Pwd: %u", TAG_GET, descriptor, pwd);
 }
 
 
@@ -85,7 +85,8 @@ int create_tag_service(int key, int permission)
     unsigned int rnd;
     struct tag_service *new_service;
 
-    printk(KERN_ALERT "%s: Creating tag called", TAG_GET);
+    AUDIT
+        printk(KERN_DEBUG "%s: Creating tag called", TAG_GET);
 
     //finding out if key is already used, if not private
     if(key != TAG_IPC_PRIVATE){
@@ -165,7 +166,8 @@ int fetch_tag_desc(int key)
     kuid_t EUID;
     struct tag_service *current_entry;
 
-    printk(KERN_ALERT "%s: Fetching tag called", TAG_GET);
+    AUDIT
+        printk(KERN_ALERT "%s: Fetching tag called", TAG_GET);
 
     //Check key type
     if(key == TAG_IPC_PRIVATE)

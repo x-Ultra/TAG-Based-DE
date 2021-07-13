@@ -78,7 +78,6 @@ int tag_service_cleaner(void *unused)
                     printk(KERN_NOTICE "%s: Cleaner has removed tag_service %d", CLEANER, i);
 
                     //done
-                    printk(KERN_NOTICE "%s: Cleaner done, sem count %d (SHOULD BE 0!)", CLEANER, semaphores[i].count);
                     up(&semaphores[i]);
                 }
             }

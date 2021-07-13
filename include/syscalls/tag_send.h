@@ -34,7 +34,6 @@ void send_to_thread(struct thread_rcvdata *thread_metadata, char* kern_buff, siz
 
     rcu_read_lock();
 
-    //TODO check this
     the_task = pid_task(find_vpid(pid), PIDTYPE_PID);
     AUDIT
         printk(KERN_DEBUG "%s: Sending at pid %ld", TAG_SEND, pid);
@@ -69,9 +68,9 @@ void send_to_thread(struct thread_rcvdata *thread_metadata, char* kern_buff, siz
     //in this way receiver could use a buffer size > RD_BUFF_SIZE
     //but, obviuusly, only RD_BUFF_SIZE will be copyied
     if(len >= thread_metadata->size){
-        min_size = len;
-    }else{
         min_size = thread_metadata->size;
+    }else{
+        min_size = len;
     }
     //copying to user space
     ret = copy_to_user((void*)thread_metadata->buffer, (void *)kern_buff, min_size);
@@ -110,7 +109,7 @@ int send_data(struct tag_service *tag_service, int level, char* buffer, size_t s
     //Fetching tag_level
     for(target_level = tag_service->tag_levels; ; target_level = target_level->next){
         if(target_level == NULL){
-            printk(KERN_ALERT "%s: tag_level is NULL in send ops", TAG_SEND);
+            printk(KERN_ERR "%s: No threads waiting on %d level", TAG_SEND, level);
             return UNEXPECTED;
         }
 
@@ -137,7 +136,6 @@ int send_data(struct tag_service *tag_service, int level, char* buffer, size_t s
     }
     target_level->level.data_received += 1;
 
-    //TODO need to separate the queues ?
     wake_up(&receiving_queue);
 
     //4. Release lock

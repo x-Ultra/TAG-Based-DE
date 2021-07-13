@@ -15,7 +15,8 @@ void main(int argc, char **argv)
 
 	int ret, permission, f;
 	int desc, rdesc;
-    char *buffer = (char *)malloc(RW_BUFFER_SIZE-1);
+    char *buffer;
+	char *recv_buff;
 
 	desc = tag_get(TAG_IPC_PRIVATE, CMD_CREATE, 0);
     if(desc >= 0){
@@ -36,11 +37,13 @@ void main(int argc, char **argv)
         //the receiver
         while(1){
 
+			recv_buff = (char *)malloc(RW_BUFFER_SIZE-1);
+
             printf("\nR->Receiving on descriptor %d, level %d\n", desc, level);
-            ret = tag_receive(desc, level, buffer, RW_BUFFER_SIZE-1);
+            ret = tag_receive(desc, level, recv_buff, RW_BUFFER_SIZE-1);
 
             if(ret >= 0){
-                printf("\nR->Received %s\n", buffer);
+                printf("\nR->Received %s\n", recv_buff);
             }else{
                 printf("\nR->Tag Receiving Failed (ret: %d)\n", ret);
             }
@@ -55,6 +58,7 @@ void main(int argc, char **argv)
     if(!f){
         //the sender
         while(1){
+			buffer = (char *)malloc(RW_BUFFER_SIZE-1);
 
             printf("\nS->Type what do you want to send: ");
             fgets(buffer, RW_BUFFER_SIZE-1, stdin);

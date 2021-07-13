@@ -71,7 +71,7 @@ unsigned int positron = 1;
 //seconds to wait if bruteforce detected
 #define BRUTE_SLEEP 3
 
-#define DEBUG
+//#define DEBUG
 #define WAIT_EV_TO
 //secconds to sleep in the wait queue during a tag_receive
 //if WAIT_EV_TO is defined (used for testing)
