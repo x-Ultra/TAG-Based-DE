@@ -18,7 +18,7 @@ do
     read -p "Your choice: " choice
 
     case $choice in
-        1) xterm -e unit/create_priv_tag &
+        1) xterm -fa 'Monospace' -fs 14 -e unit/create_priv_tag &
         ;;
         2) read -p "Insert Key: " key
            read -p "Permission (user=0, any=1): " perm
@@ -27,24 +27,24 @@ do
         ;;
         3) read -p "Insert TAG Key: " key
            read -p "Insert Level: " lvl
-           xterm -e unit/spawn_receiver $key $lvl &
+           xterm -fa 'Monospace' -fs 14 -e unit/spawn_receiver $key $lvl &
         ;;
         4) read -p "Insert TAG Key: " key
            read -p "Insert Level: " lvl
-           xterm -e unit/spawn_sender $key $lvl &
+           xterm -fa 'Monospace' -fs 14 -e unit/spawn_sender $key $lvl &
         ;;
         5) read -p "Insert TAG Key: " key
-           xterm -e unit/delete_tag $key &
+           xterm -fa 'Monospace' -fs 14 -e unit/delete_tag $key &
         ;;
         6) read -p "Insert TAG Key: " key
-           xterm -e unit/awake_all $key &
+           xterm -fa 'Monospace' -fs 14 -e unit/awake_all $key &
         ;;
-        7) xterm -e "system/brute_force" &
+        7) xterm -fa 'Monospace' -fs 14 -e "system/brute_force" &
         ;;
         8) read -p "Num Receiving threads: " num
-           xterm -e "system/tag_receive" $num &
+           xterm -fa 'Monospace' -fs 14 -e "system/tag_receive" $num &
         ;;
-        9) xterm -e "cd ./system && ./monitoring" &
+        9) xterm -fa 'Monospace' -fs 14 -e "cd ./system && ./monitoring" &
 	    ;;
         10) exit
 	    ;;

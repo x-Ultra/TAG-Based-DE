@@ -163,6 +163,7 @@ int fetch_tag_desc(int key)
 {
     int descriptor;
     int permission;
+    int found = 0;
     kuid_t EUID;
     struct tag_service *current_entry;
 
@@ -181,20 +182,20 @@ int fetch_tag_desc(int key)
         current_entry = tag_table[descriptor];
 
         if(current_entry == NULL){
-            spin_unlock(&tag_tbl_spin);
-            return KEY_NOT_FOUND;
+            continue;
         }
         if(current_entry->key == key){
             permission = current_entry->permission;
+            found = 1;
             break;
-        }
-        if(descriptor == TBL_ENTRIES_NUM-1){
-            spin_unlock(&tag_tbl_spin);
-            return KEY_NOT_FOUND;
         }
 
     }
     spin_unlock(&tag_tbl_spin);
+
+    if(!found){
+        return KEY_NOT_FOUND;
+    }
 
     //perform checks based on permission value of current_entry
     if(permission == PERMISSION_USER){

@@ -60,6 +60,8 @@ int tag_service_cleaner(void *unused)
                         the_key = tag_table[i]->key;
                         for(j = 0; j < TBL_ENTRIES_NUM; j++){
                             if(used_keys[j] == the_key){
+                                AUDIT
+                                    printk(KERN_NOTICE "%s: Removing key: %d", CLEANER, used_keys[j]);
                                 //removing could be performed
                                 used_keys[j] = used_keys[num_used_keys-1];
                                 used_keys[num_used_keys-1] = -1;

@@ -60,9 +60,9 @@ int compose_statline(int key, int pid, int lvl, int w_thr, int offset)
     }
 
     if(lvl == -1){
-        ret = snprintf(tag_service_stat+offset, STAT_LINE_LEN+2, DRIVER_STAT_LINE_EMPTY, key, pid, w_thr);
+        ret = snprintf(tag_service_stat+offset, STAT_LINE_LEN+10, DRIVER_STAT_LINE_EMPTY, key, pid, w_thr);
     }else{
-        ret = snprintf(tag_service_stat+offset, STAT_LINE_LEN+2, DRIVER_STAT_LINE, key, pid, lvl, w_thr);
+        ret = snprintf(tag_service_stat+offset, STAT_LINE_LEN+10, DRIVER_STAT_LINE, key, pid, lvl, w_thr);
     }
 
     if(ret <= 0){
